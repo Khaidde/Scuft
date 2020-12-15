@@ -1,11 +1,5 @@
-import PointLike from "./test"
+import * as ECSDemo from "./scuft/ecs/ECSDemo"
 
-let testPoint = {
-    x: 1,
-    y: 52
-}
-printPoint(testPoint);
-
-function printPoint(point: PointLike) {
-    console.log(point);
+window.onload = () => {
+    ECSDemo;
 }

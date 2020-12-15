@@ -46,18 +46,75 @@ main {
 
     //Initialize a particle with phsyical properties
     particle {
-        position [x, y, z]
-        velocity [x, y, z]
-        force    [x, y, z]
+        position [1, 2, 3] //[x, y, z]
+        velocity [4, 5, 6]
+        force    [7, 8, 9]
     }
 } => step 100 //Run 100 steps of the simulation
 ```
 #### Option 2:
 ```
 PARTICLE p
-p.vel[x, y, z], p.pos[x, y, z], p.force 
+p.vel[1, 2, 3] //[x, y, z]
+p.pos[4, 5, 6]  
+p.force[7, 8, 9] 
 Start
 Step (100)
+```
+#### Option 3a:
+```
+fn main = {
+    p : Particle = {
+        pos = <1, 2, 3>;
+        vel = <4, 5, 6>;
+        force = <7, 8, 9>;
+    }
+    step(p, 100);
+}
+```
+#### Option 3b:
+```
+type DetailedParticle {
+    pos : Position(3) = <1, 2, 3>; //<x, y, z>
+    vel : Velocity(3) = <4, 5, 6>;
+    force : Force(3) =  <7, 8, 9>;
+
+    id = 0;
+    name : string = "DetailedParticle"; //name = "DetailedParticle" is also valid
+}
+
+fn step : (particle: DetailedParticle, stepCount: number) = {
+    particle.pos.x += particle.vel.x * stepCount;
+    particle.pos.y += particle.vel.y * stepCount;
+    particle.pos.z += particle.vel.z * stepCount;
+}
+
+fn main = {
+    p1 : Particle;
+    step(p1, 100);
+
+    particles : DetailedParticle[1000];
+
+    || step(particles[...], 100); //Iteration: Apply step function on all points in the array, "particles"
+
+    //Define function within the scope of another function
+    fn getPositionX : (particle: DetailedParticle) -> number = {
+        return particle.pos.x;
+    }
+
+    xPosition = getPositionX(p1); //Implicit type "number", equivalent to xPosition : number = getPositionX(p1)
+    out(xPosition);
+
+    fn printX : (particle: DetailedParticle) = {
+        out(particle.pos.x); //Print "out" to console
+    }
+
+    //Iterate over a scope
+    || {
+        printX(particle[...]);   
+        out("-----line divider----");
+    }
+}
 ```
 
 ## License

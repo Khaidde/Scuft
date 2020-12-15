@@ -7,7 +7,8 @@
     "strict": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
-    "noEmitOnError": true
+    "noEmitOnError": true,
+    "removeComments": true
   },
   "exclude": ["node_modules"],
   "include": ["src/**/*.ts"]
