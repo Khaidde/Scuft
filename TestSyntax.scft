@@ -1,0 +1,120 @@
+type Vec3 {
+    x: num;
+    y: num;
+    z: num;
+}
+
+type Particle {
+    id: num;
+    pos: <num, num, num>;
+    vel: Vec3;
+}
+
+module Astrology {
+    stars = 30000;
+    lightUp := {}
+}
+
+module Astrology2 {
+    stars = 4000;
+    lightUp := {}
+}
+
+main := {
+
+    with Astrology as astro1;
+    with Astrology2;
+
+    astro1=>lightUp();
+    Astrology2=>stars;
+
+    add : (particle: Particle, particle2: Particle) -> void = {
+        //Something
+    }
+
+    functionABC : (a: num, b: num) -> num = {
+        return a + b;
+    }
+
+    a : num = 3; //declare variable "a" with value 3 
+
+    a' = 4; //apostrophes allowed in identifier
+
+    /*
+    Block comments!
+    */
+    b = 3; //Implicit num variable declaration
+
+    c : string = "c string";
+
+    functionABC(2, a); //Function call
+
+    particle = Particle { //Type Constructor
+        pos = <1, 2, 3>;
+    };
+    particle2 = Particle{};
+
+    print : (prefix: string, particle: Particle) -> void = {
+        sysout(prefix + particle.pos<0>);
+        sysout(prefix + particle.vel.x);
+    }
+
+    arrayOfParticles: Particle[100];
+
+    array2OfParticles: Particle[60];
+
+    loop = {
+        for (i = 0; i < 10; i++) {
+            for arrayOfParticles loop();
+        }
+    }
+
+    for arrayOfParticles {
+        loop();
+    }
+    for arrayOfParticles print(...);
+
+    for i = 0; i < arrayOfParticles.length; i++ loop();
+
+    for (i = 0; i < arrayOfParticles.length; i++) {
+        print(arrayOfParticles[i]);
+    }
+
+    a: num = 3;
+    fun := [a] {
+        a;
+        fun();
+    }
+    a: Particle;
+    a.callFn(fun);
+
+    asdf = 5;
+    fun : (x: num) -> num = {    
+        return 4 * x + 6 * sin(x) + asdf;
+    }
+    fun' : (x: num) -> num = {    
+        return 4 + 6 * cos(x);
+    }
+    expr: (x: num) -> num = #expr 4 * x ^ 2 + 6 * sin(x);
+    expr' = #d expr x;
+
+    fun2 : (x: num, y: num) -> num = {    
+        return 4 + 6 * cos(x) + y;
+    }
+
+    r : (t: num) -> <num, num, num> = #expr <3, 2, 3>;
+    r : (t: num) -> <num, num, num> = {    
+        return <3, 2, 3>;
+    }
+    r' = #d r t;
+
+    /*
+
+    | => or 
+    & => and
+    $ => xor
+    ~ => not
+
+    */
+}
+
