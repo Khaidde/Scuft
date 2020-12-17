@@ -19,12 +19,11 @@ enum TokenType {
     WHILE_TKN,
     BREAK_TKN,
     CONTINUE_TKN,
-    ELLIPSES_TKN, // for [array] doSomething(...)
     IF_TKN,
     ELSE_TKN,
     TYPE_TKN,
     MODULE_TKN,
-    
+
     // Conditionals
     COND_OR_TKN, // ||
     COND_AND_TKN, // &&
@@ -63,7 +62,8 @@ enum TokenType {
     OP_SUBTR_TKN,
     OP_MULT_TKN,
     OP_DIVIDE_TKN,
-    OP_CARROT_TKN, 
+    OP_CARROT_TKN,
+    OP_MODULUS_TKN,
     OP_BAR_TKN,
     OP_ADD_ADD_TKN,
     OP_ADD_EQUALS_TKN,
@@ -74,12 +74,13 @@ enum TokenType {
 
     //Miscellaneous
     DOT_TKN,
+    ELLIPSES_TKN, // for [array] doSomething(...)
     COMMENT_TKN,
     BLOCK_COMMENT_TKN,
     COMMA_TKN,
     SEMI_COLON_TKN,
     UNKNOWN_TKN,
-    END_TKN
+    END_TKN,
 }
 
 export default TokenType;

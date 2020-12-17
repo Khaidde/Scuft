@@ -12,15 +12,15 @@ type Particle {
 
 module Astrology {
     stars = 30000;
-    lightUp := {}
+    lightUp = {}
 }
 
 module Astrology2 {
     stars = 4000;
-    lightUp := {}
+    lightUp = {}
 }
 
-main := {
+main = {
 
     with Astrology as astro1;
     with Astrology2;

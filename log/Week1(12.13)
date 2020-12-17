@@ -1,0 +1,46 @@
+12/14/20 (Monday)
+    Tasks
+    - Figure out syntax
+
+    Done
+    - Decided on syntax 
+
+12/15/20 (Tuesday)
+    Tasks
+    - Write a lexer
+
+    Done
+    - Wrote a lexer
+
+12/16/20 (Wednesday)
+    Tasks
+    - Parsing a = 3
+    - Parsing a : num = 3
+
+    Ideas
+        Recursive definition for Type
+            f : (a: (b: num) -> num, c: bool) -> (d: num) -> string;
+        Optional Parameters (easy way to overload functions)
+            g = (a = "happy", b:num)
+            g (?, 3);
+
+            setMaxPlayers : (maxPlayers = 3) = {
+                ...maxPlayers = maxPlayers;
+            }
+
+            // Compiles to setMaxPlayers(3);
+            setMaxPlayers(?); // what the syntax would like to get 3
+
+    Done
+    - Refactored lexer to cleaner format (by Calvin's standards)
+    - Basic declaration Parsing (a = 3, b := 4)
+    - Cleaned up lexer to include a peeking function + other lexer refactoring
+    - Parsing implemented through peeking and consuming
+    - Added information to token to help with debugging (column, characterIndex, stringValue)
+    - Changed error output format
+
+12/17/20
+    Tasks
+    - Parsing type declarations 
+    - Parsing simple arithmetic op expressions ("+", "-" (negation), "*", etc.)
+    - Parsing functions

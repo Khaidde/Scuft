@@ -2,6 +2,4 @@
 
 import * as ScuftTest from "./scuft/lang/ScuftTest"
 
-window.onload = () => {
-    ScuftTest.default();
-}
+ScuftTest.default();

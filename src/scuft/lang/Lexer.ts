@@ -1,14 +1,26 @@
-import Token from "./Token"
-import TokenType from "./TokenType"
+import Token from "./Token";
+import TokenType from "./TokenType";
 
-import { err } from "../ErrorHandling"
+import { err } from "../ErrorHandling";
 
 export default class Lexer {
     private prgmString: string;
-    private curIndex: number = -1;
-    private curLine: number = 1;
+    private curIndex = 0;
+    private curLine = 1;
+    private curCol = 1;
+    private lastIndex = 0;
+    private lastCol = 1;
     constructor(prgmString: string) {
         this.prgmString = prgmString;
+    }
+    lex(): Token[] {
+        let tokens: Token[] = [];
+        let token = this.createToken();
+        while (token.type !== TokenType.END_TKN) {
+            tokens.push(token);
+            token = this.createToken();
+        }
+        return tokens;
     }
     private getChar(index: number): string {
         return this.prgmString.charAt(index);
@@ -19,277 +31,201 @@ export default class Lexer {
     private getNextChar(): string {
         return this.getChar(this.curIndex + 1);
     }
-    private makeToken(type: TokenType): Token {
-        return new Token(type, this.curLine);
+    private incrementCurIndex(amount: number) {
+        this.curIndex += amount;
+        this.curCol += amount;
     }
-    lex(): Token[] {
-        let tokens: Token[] = [];
-        let token = this.nextToken();
-        while (token.type !== TokenType.END_TKN) {
-            tokens.push(token);
-            token = this.nextToken();
+    private peekTkn!: Token;
+    private uptIndex!: number;
+    peekToken(): Token {
+        if (!this.peekTkn || this.peekTkn.ch < this.uptIndex) {
+            this.peekTkn = this.createToken();
         }
-        return tokens;
+        return this.peekTkn;
     }
     nextToken(): Token {
-        this.curIndex++;
-
+        let tkn = this.peekToken();
+        this.peekTkn = tkn;
+        this.uptIndex = this.curIndex;
+        return tkn;
+    }
+    private createToken(): Token {
+        //Clear Whitespace
         let ch = this.getCurChar();
         while (this.isWhitespace(ch)) {
-            this.curIndex++;
+            if (ch === "\n") {
+                this.curLine++;
+                this.curCol = 0;
+                this.lastCol = 0;
+            }
+            this.incrementCurIndex(1);
+            this.lastCol++;
+            this.lastIndex++;
             ch = this.getCurChar();
         }
-        
+
+        //Return end token if end of string input reached
         if (this.curIndex >= this.prgmString.length) {
-            return new Token(TokenType.END_TKN, this.curLine);
+            return this.grabToken("", TokenType.END_TKN);
         }
-        
+
         switch (this.getCurChar()) {
             // Assignment
-            case '=':
-                let condEquals = this.grabToken("==", TokenType.COND_EQUALS_TKN);
-                if (condEquals) {
-                    return condEquals;
+            case "=":
+                if (this.getNextChar() === "=") {
+                    return this.grabToken("==", TokenType.COND_EQUALS_TKN);
                 } else {
-                    return this.makeToken(TokenType.ASSIGNMENT_TKN); 
+                    return this.grabToken("=", TokenType.ASSIGNMENT_TKN);
                 }
-            case '>':
-                let condGreater = this.grabToken(">=", TokenType.COND_GREATER_THAN_EQUAL_TKN);
-                if (condGreater) {
-                    return condGreater;
+            case ">":
+                if (this.getNextChar() === "=") {
+                    return this.grabToken(">=", TokenType.COND_GREATER_THAN_EQUAL_TKN);
+                } else if (this.getNextChar() === ">" && this.getChar(this.curIndex + 2) === ">") {
+                    return this.grabToken(">>>", TokenType.BIN_SHIFT_ARITHMETIC_RIGHT_TKN);
+                } else if (this.getNextChar() === ">") {
+                    return this.grabToken(">>", TokenType.BIN_SHIFT_ARITHMETIC_RIGHT_TKN);
                 } else {
-                    let shftRight = this.grabToken(">>", TokenType.BIN_SHIFT_RIGHT_TKN);
-                    if (shftRight) {
-                        return shftRight;
-                    } else if (this.getChar(this.curIndex  + 2) === ">") {
-                        return this.makeToken(TokenType.BIN_SHIFT_ARITHMETIC_RIGHT_TKN)
-                    } else {
-                        return this.makeToken(TokenType.COND_GREATER_THAN_TKN); 
-                    }
+                    return this.grabToken(">", TokenType.COND_GREATER_THAN_TKN);
                 }
-            case '<':
-                let condLess = this.grabToken("<=", TokenType.COND_LESS_THAN_EQUAL_TKN);
-                if (condLess) {
-                    return condLess;
+            case "<":
+                if (this.getNextChar() === "=") {
+                    return this.grabToken("<=", TokenType.COND_LESS_THAN_EQUAL_TKN);
+                } else if (this.getNextChar() === "<") {
+                    return this.grabToken("<<", TokenType.BIN_SHIFT_LEFT_TKN);
                 } else {
-                    if (this.getChar(this.curIndex + 1) === "<") {
-                        return this.makeToken(TokenType.BIN_SHIFT_LEFT_TKN);
-                    } else {
-                        return this.makeToken(TokenType.COND_LESS_THAN_TKN); 
-                    }
+                    return this.grabToken("<", TokenType.COND_LESS_THAN_TKN);
                 }
-            case ':':
-                return this.makeToken(TokenType.COLON_TKN);
+            case ":":
+                return this.grabToken(":", TokenType.COLON_TKN);
 
             // Blocks
-            case '{':
-                return this.makeToken(TokenType.LEFT_CURLY_TKN);
-            case '}':
-                return this.makeToken(TokenType.RIGHT_CURLY_TKN);
-            case '[':
-                return this.makeToken(TokenType.LEFT_SQUARE_TKN);
-            case ']':
-                return this.makeToken(TokenType.RIGHT_SQUARE_TKN);
-            case '(':
-                return this.makeToken(TokenType.LEFT_PARENS_TKN);
-            case ')':
-                return this.makeToken(TokenType.RIGHT_PARENS_TKN);
+            case "{":
+                return this.grabToken("{", TokenType.LEFT_CURLY_TKN);
+            case "}":
+                return this.grabToken("}", TokenType.RIGHT_CURLY_TKN);
+            case "[":
+                return this.grabToken("[", TokenType.LEFT_SQUARE_TKN);
+            case "]":
+                return this.grabToken("]", TokenType.RIGHT_SQUARE_TKN);
+            case "(":
+                return this.grabToken("(", TokenType.LEFT_PARENS_TKN);
+            case ")":
+                return this.grabToken(")", TokenType.RIGHT_PARENS_TKN);
 
-            case '~':
-                return this.makeToken(TokenType.BIN_NOT_TKN)
-            
-            //Dot Operator and Ellipses
-            case '.':
-                if (this.currentMatches("...")) {
-                    return this.makeToken(TokenType.ELLIPSES_TKN);
-                } else {
-                    return this.makeToken(TokenType.DOT_TKN);
-                }
             //Conditionals
-            case '|':
-                let orToken = this.grabToken("||", TokenType.COND_OR_TKN);
-                if (orToken) {
-                    return orToken;
+            case "|":
+                if (this.getNextChar() === "|") {
+                    return this.grabToken("||", TokenType.COND_OR_TKN);
                 } else {
-                    return this.makeToken(TokenType.OP_BAR_TKN);
+                    return this.grabToken("|", TokenType.OP_BAR_TKN);
                 }
-            case '&':
-                let andToken = this.grabToken("&&", TokenType.COND_AND_TKN);
-                if (andToken) {
-                    return andToken;
+            case "&":
+                if (this.getNextChar() === "&") {
+                    return this.grabToken("&&", TokenType.COND_AND_TKN);
                 } else {
-                    return this.makeToken(TokenType.UNKNOWN_TKN);
+                    let ampersand = this.grabToken("&" + this.getNextChar(), TokenType.UNKNOWN_TKN);
+                    ampersand.value = "&";
+                    return ampersand;
                 }
-            case '$':
-                let xorToken = this.grabToken("$$", TokenType.COND_XOR_TKN);
-                if (xorToken) {
-                    return xorToken;
+            case "$":
+                if (this.getNextChar() === "$") {
+                    return this.grabToken("$$", TokenType.COND_XOR_TKN);
                 } else {
-                    return this.makeToken(TokenType.UNKNOWN_TKN);
+                    let dollar = this.grabToken("$" + this.getNextChar(), TokenType.UNKNOWN_TKN);
+                    dollar.value = "$";
+                    return this.grabToken("$", TokenType.UNKNOWN_TKN);
                 }
-            case '!':
-                let notEq = this.grabToken("!=", TokenType.COND_NOT_EQUALS_TKN);
-                if (notEq) {
-                    return notEq;
+            case "!":
+                if (this.getNextChar() === "=") {
+                    return this.grabToken("!=", TokenType.COND_NOT_EQUALS_TKN);
                 } else {
-                    return this.makeToken(TokenType.COND_NOT_TKN);
+                    return this.grabToken("!", TokenType.COND_NOT_TKN);
                 }
 
             // Operators
-            case '^':
-                return this.makeToken(TokenType.OP_CARROT_TKN)
-            case '+':
+            case "+":
                 switch (this.getNextChar()) {
-                    case '=':
-                        this.curIndex++;
-                        return this.makeToken(TokenType.OP_ADD_EQUALS_TKN);
-                    case '+':
-                        this.curIndex++;
-                        return this.makeToken(TokenType.OP_ADD_ADD_TKN);
+                    case "=":
+                        return this.grabToken("+=", TokenType.OP_ADD_EQUALS_TKN);
+                    case "+":
+                        return this.grabToken("++", TokenType.OP_ADD_ADD_TKN);
                     default:
-                        return this.makeToken(TokenType.OP_ADD_TKN);
+                        return this.grabToken("+", TokenType.OP_ADD_TKN);
                 }
-            case '-':
+            case "-":
                 switch (this.getNextChar()) {
-                    case '=':
-                        this.curIndex++;
-                        return this.makeToken(TokenType.OP_SUBTR_EQUALS_TKN);
-                    case '-':
-                        this.curIndex++;
-                        return this.makeToken(TokenType.OP_SUBTR_SUBTR_TKN);
-                    case '>':
-                        this.curIndex++;
-                        return this.makeToken(TokenType.FUNC_MAPPING_TKN);
+                    case "=":
+                        return this.grabToken("-=", TokenType.OP_SUBTR_EQUALS_TKN);
+                    case "-":
+                        return this.grabToken("--", TokenType.OP_SUBTR_SUBTR_TKN);
+                    case ">":
+                        return this.grabToken("->", TokenType.FUNC_MAPPING_TKN);
                     default:
-                        return this.makeToken(TokenType.OP_SUBTR_TKN);
+                        return this.grabToken("-", TokenType.OP_SUBTR_TKN);
                 }
-            case '*':
+            case "*":
                 switch (this.getNextChar()) {
-                    case '=':
-                        this.curIndex++;
-                        return this.makeToken(TokenType.OP_MULT_EQUALS_TKN);
+                    case "=":
+                        return this.grabToken("*=", TokenType.OP_MULT_EQUALS_TKN);
                     default:
-                        return this.makeToken(TokenType.OP_MULT_TKN);
+                        return this.grabToken("*", TokenType.OP_MULT_TKN);
                 }
-            case '/':
+            case "/":
                 switch (this.getNextChar()) {
-                    case '/':
-                        this.curIndex++;
-                        return this.makeToken(TokenType.COMMENT_TKN);
-                    case '*':
-                        this.curIndex++;
-                        return this.makeToken(TokenType.BLOCK_COMMENT_TKN);
-                    case '=':
-                        this.curIndex++;
-                        return this.makeToken(TokenType.OP_DIV_EQUALS_TKN);
+                    case "/":
+                        //TODO comment out whole line
+                        return this.grabToken("//", TokenType.COMMENT_TKN);
+                    case "*":
+                        //TODO get entire block comment
+                        return this.grabToken("/*", TokenType.BLOCK_COMMENT_TKN);
+                    case "=":
+                        return this.grabToken("/=", TokenType.OP_DIV_EQUALS_TKN);
                     default:
-                        return this.makeToken(TokenType.OP_DIVIDE_TKN);
+                        return this.grabToken("/", TokenType.OP_DIVIDE_TKN);
                 }
+            case "^":
+                return this.grabToken("^", TokenType.OP_CARROT_TKN);
+            case "%":
+                return this.grabToken("%", TokenType.OP_MODULUS_TKN);
 
             //Miscellaneous
-            case ',':
-                return this.makeToken(TokenType.COMMA_TKN);
-            case ';':
-                return this.makeToken(TokenType.SEMI_COLON_TKN);
-            case '\"':
-                let str = this.grabString();
-                let tkn = this.makeToken(TokenType.STRING_LITERAL_TKN);
-                tkn.value = str;
-                return tkn;
+            case "~":
+                return this.grabToken("~", TokenType.BIN_NOT_TKN);
+            case ".":
+                if (this.getNextChar() === "." && this.getChar(this.curIndex + 2) === ".") {
+                    return this.grabToken("...", TokenType.ELLIPSES_TKN);
+                } else {
+                    return this.grabToken(".", TokenType.DOT_TKN);
+                }
+            case ",":
+                return this.grabToken(",", TokenType.COMMA_TKN);
+            case ";":
+                return this.grabToken(";", TokenType.SEMI_COLON_TKN);
+            case '"':
+                return this.grabStringLiteral();
             default:
                 if (this.isLetter(ch)) {
-                    let name = this.grabIdentifier();
-                    
-                    let keyword = this.grabKeywordToken(name);
-                    if (keyword) return keyword;
-
-                    let tkn = this.makeToken(TokenType.IDENTIFIER_TKN);
-                    tkn.name = name;
-                    return tkn;
+                    return this.grabIdentifier();
                 } else if (this.isNumber(ch)) {
-                    let number = this.grabNumber();
-                    let tkn = this.makeToken(TokenType.NUMERIC_LITERAL_TKN);
-                    tkn.value = number;
-                    return tkn;
+                    return this.grabNumericLiteral();
                 } else {
-                    console.log("not letter or string");
-                    return this.makeToken(TokenType.UNKNOWN_TKN);
+                    let unknown = this.grabToken(ch, TokenType.UNKNOWN_TKN);
+                    unknown.value = ch;
+                    return unknown;
                 }
         }
     }
-    private grabToken(str: String, type: TokenType) : Token | undefined{
-        if (this.currentMatches(str)) {
-            this.curIndex += (str.length - 1);
-            return this.makeToken(type);
-        } else {
-            return undefined;
-        }
+    private grabToken(str: string, type: TokenType): Token {
+        this.incrementCurIndex(str.length);
+        return this.makeToken(str, type);
     }
-    private grabKeywordToken(name: string): Token | undefined {
-        //Keyword checking
-        switch (name) {
-            case "type":
-                return this.makeToken(TokenType.TYPE_TKN);
-            case "module":
-                return this.makeToken(TokenType.MODULE_TKN);
-                
-            case "for":
-                return this.makeToken(TokenType.FOR_TKN);
-            case "while":
-                return this.makeToken(TokenType.WHILE_TKN);
-            case "break":
-                return this.makeToken(TokenType.BREAK_TKN);
-            case "continue":
-                return this.makeToken(TokenType.CONTINUE_TKN);
-            case "if":
-                return this.makeToken(TokenType.IF_TKN);
-            case "else":
-                return this.makeToken(TokenType.ELSE_TKN);
-    
-            //Bitwise Operators
-            case "or":
-                return this.makeToken(TokenType.BIN_OR_TKN);
-            case "and":
-                return this.makeToken(TokenType.BIN_AND_TKN);
-            case "xor":
-                return this.makeToken(TokenType.BIN_XOR_TKN);
-            
-            //Conditionals
-            case "true":
-                return this.makeToken(TokenType.COND_TRUE_TKN);
-            case "false":
-                return this.makeToken(TokenType.COND_FALSE_TKN);  
-
-            //Types
-            case "void":
-                return this.makeToken(TokenType.VOID_TKN);
-            case "num":
-                return this.makeToken(TokenType.NUM_TKN);
-            case "string":
-                return this.makeToken(TokenType.STRING_TKN);
-            case "bool":
-                return this.makeToken(TokenType.BOOL_TKN);
-            
-            // functions
-            case "return":
-                return this.makeToken(TokenType.RETURN_TKN);
-            
-            default:
-                return undefined;
-        }
+    private makeToken(str: string, type: TokenType): Token {
+        let tkn = new Token(type, this.curLine, this.lastCol, this.lastIndex, str);
+        this.lastCol = this.curCol;
+        this.lastIndex = this.curIndex;
+        return tkn;
     }
-    private grabIdentifier(): string {
-        let str = "";
-        let ch = this.getCurChar();
-        while (this.isLetter(ch) || this.isNumber(ch)) {
-            this.curIndex++;
-            str = str + ch;
-            ch = this.getCurChar();
-        }
-        this.curIndex--;
-        return str;
-    }
-    private grabNumber(): number {
+    private grabNumericLiteral(): Token {
         let number = 0;
         let ch = this.getCurChar();
         let point = false;
@@ -298,28 +234,35 @@ export default class Lexer {
             if (ch === ".") {
                 if (point === false) {
                     point = true;
-                    this.curIndex++;
+                    this.incrementCurIndex(1);
                     ch = this.getCurChar();
                     continue;
                 } else {
-                    err("Invalid Number (too many decimal points): \"" + number / divideBy + ".\"", this.curLine);
+                    throw err(
+                        'Invalid Number (too many decimal points): "' + number / divideBy + '."',
+                        this.curLine,
+                        this.curCol
+                    );
                 }
             }
             number = 10 * number + parseInt(ch);
-            this.curIndex++;
+            this.incrementCurIndex(1);
             ch = this.getCurChar();
             if (point) divideBy *= 10;
         }
-        this.curIndex--;
-        return number / divideBy;
+
+        let value = number / divideBy;
+        let tkn = this.makeToken(value + "", TokenType.NUMERIC_LITERAL_TKN);
+        tkn.value = value;
+        return tkn;
     }
-    private grabString(): string {
-        this.curIndex++;
+    private grabStringLiteral(): Token {
+        this.incrementCurIndex(1);
         let str = "";
         let ch = this.getCurChar();
         let escapeChar = false;
-        while (escapeChar || ch !== "\"") {
-            if (!escapeChar || ch === "\"") {
+        while (escapeChar || ch !== '"') {
+            if (!escapeChar || ch === '"') {
                 str += ch;
             }
             if (ch === "\\") {
@@ -327,22 +270,75 @@ export default class Lexer {
             } else {
                 escapeChar = false;
             }
-            this.curIndex++;
+            this.incrementCurIndex(1);
             ch = this.getCurChar();
         }
-        return str;
+        this.incrementCurIndex(1);
+        let tkn = this.makeToken('"' + str + '"', TokenType.STRING_LITERAL_TKN);
+        tkn.value = str;
+        return tkn;
     }
-    private currentMatches(str: String): boolean {
-        let len = str.length - 1;
-        let currentStr = this.prgmString.slice(this.curIndex, this.curIndex + len);
-        return currentStr == str;
+    private grabIdentifier(): Token {
+        let str = "";
+        let ch = this.getCurChar();
+        while (this.isLetter(ch) || this.isNumber(ch)) {
+            this.incrementCurIndex(1);
+            str = str + ch;
+            ch = this.getCurChar();
+        }
+        switch (str) {
+            case "type":
+                return this.makeToken("type", TokenType.TYPE_TKN);
+            case "module":
+                return this.makeToken("module", TokenType.MODULE_TKN);
+
+            case "for":
+                return this.makeToken("for", TokenType.FOR_TKN);
+            case "while":
+                return this.makeToken("while", TokenType.WHILE_TKN);
+            case "break":
+                return this.makeToken("break", TokenType.BREAK_TKN);
+            case "continue":
+                return this.makeToken("continue", TokenType.CONTINUE_TKN);
+            case "if":
+                return this.makeToken("if", TokenType.IF_TKN);
+            case "else":
+                return this.makeToken("else", TokenType.ELSE_TKN);
+
+            //Bitwise Operators
+            case "or":
+                return this.makeToken("or", TokenType.BIN_OR_TKN);
+            case "and":
+                return this.makeToken("and", TokenType.BIN_AND_TKN);
+            case "xor":
+                return this.makeToken("xor", TokenType.BIN_XOR_TKN);
+
+            //Conditionals
+            case "true":
+                return this.makeToken("true", TokenType.COND_TRUE_TKN);
+            case "false":
+                return this.makeToken("false", TokenType.COND_FALSE_TKN);
+
+            //Types
+            case "void":
+                return this.makeToken("void", TokenType.VOID_TKN);
+            case "num":
+                return this.makeToken("num", TokenType.NUM_TKN);
+            case "string":
+                return this.makeToken("string", TokenType.STRING_TKN);
+            case "bool":
+                return this.makeToken("bool", TokenType.BOOL_TKN);
+
+            // functions
+            case "return":
+                return this.makeToken("return", TokenType.RETURN_TKN);
+
+            default:
+                return this.makeToken(str, TokenType.IDENTIFIER_TKN);
+        }
     }
     private isWhitespace(ch: string): boolean {
-        if (ch === "\n") {
-            this.curLine++;
-            return true;
-        }
-        return ch === " " || ch === "\t";
+        return ch === " " || ch === "\t" || ch === "\n";
     }
     private isLetter(ch: string): boolean {
         let n = ch.charCodeAt(0);
@@ -350,6 +346,6 @@ export default class Lexer {
     }
     private isNumber(ch: string): boolean {
         let n = ch.charCodeAt(0);
-        return (n >= 48 && n <= 57);
+        return n >= 48 && n <= 57;
     }
 }

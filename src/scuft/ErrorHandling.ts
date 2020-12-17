@@ -1,3 +1,3 @@
-export function err(msg: string, line: number) {
-    throw new Error(msg + " at line " + line);
-};
+export function err(msg: string, line: number, col: number) {
+    return new Error("(line:" + line + ",col:" + col + "): " + msg);
+}
