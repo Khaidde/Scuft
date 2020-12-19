@@ -1,0 +1,41 @@
+simpleTest1 : boolean;
+simpleTest2 : (a: num, b: num) -> string; 
+
+
+test: num;
+test = 3;
+
+crazyF : ((num, num) -> num, (num, num) -> string, boolean, num) -> (num) -> num;
+
+crazyF = [] (a: (num, num) -> num, b: (num, num) -> string, c: boolean, d: num) -> (num) -> num {
+
+}
+
+vectorTest: <num, num, <num, num>> = <1, 2, <1,2>>;
+addItem = (vector: ????, item: #generic T) {
+    return ????;
+};
+
+
+asdf = (((((((((((((((((((((identifier: string...)))))))))))))))))))))
+
+a = (a: num, b: num) -> num {
+
+}
+
+b = (9 + 2 * 7);
+
+func : (num, num) -> num = [] (a: num, b: num) {
+    return -1;
+}
+
+doFuncTwice([] (a: num, b: num) {
+    function(2, 3);
+    function(0, 1);
+}
+
+doFuncTwice([] (a: num, b: num) {
+    return a + b;
+});
+
+print(a: num = 3);

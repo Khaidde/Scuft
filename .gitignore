@@ -101,3 +101,6 @@ typings/
 
 #VSCode
 .vscode/
+
+#dist
+dist/bundle.js

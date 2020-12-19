@@ -1,90 +1,180 @@
 import Lexer from "./Lexer";
 
-import { ASTExpression, ASTDeclaration, ASTStatement, ASTProgram, ASTType } from "./Ast";
+import * as AST from "./Ast";
 import TokenType from "./TokenType";
-import { err } from "../ErrorHandling";
 
 export default class Parser {
     private lexer: Lexer;
     constructor(lexer: Lexer) {
         this.lexer = lexer;
     }
-    private assertToken(type: TokenType): boolean {
+    private checkToken(type: TokenType): boolean {
         return this.lexer.peekToken().type === type;
     }
-    parseProgram(): ASTProgram {
-        let prgmAST = new ASTProgram();
+    private assertToken(type: TokenType, expectedTkn?: string, msg?: string) {
+        let tkn = this.lexer.peekToken();
+        if (tkn.type !== type) {
+            let res = "Expected ";
+            if (expectedTkn) {
+                res += expectedTkn;
+            } else {
+                res += TokenType[type];
+            }
+            res += " but got " + tkn.stringValue + " instead";
+            if (msg) {
+                res += ": " + msg;
+            }
+            this.lexer.parseErr.errToken(res, tkn);
+        }
+    }
+    parseProgram(): AST.ASTProgram {
+        let prgmAST = new AST.ASTProgram();
         while (this.lexer.peekToken().type != TokenType.END_TKN) {
-            //TODO check other types of nodes
-            prgmAST.statements.push(this.parseStatement());
+            //TODO check other types of nodes including "types" and "modules"
+            switch (this.lexer.peekToken().type) {
+                default:
+                    prgmAST.statements.push(this.parseStatement());
+            }
         }
         return prgmAST;
     }
-    private parseStatement(): ASTStatement {
-        let token = this.lexer.peekToken();
+    private parseBlock(): AST.ASTBlock {
+        let block = new AST.ASTBlock();
+        this.assertToken(TokenType.LEFT_CURLY_TKN, "{");
+        this.lexer.nextToken();
+        while (!this.checkToken(TokenType.RIGHT_CURLY_TKN)) {
+            block.statements.push(this.parseStatement());
+        }
+        this.lexer.nextToken(); //Right curly
+        return block;
+    }
+    private parseStatement(): AST.ASTStatement {
+        let tkn = this.lexer.peekToken();
 
         let statement;
-        switch (token.type) {
-            case TokenType.IDENTIFIER_TKN: // a : int
-                // TODO have to check next token generally
-                statement = this.parseDeclaration();
+        switch (tkn.type) {
+            case TokenType.IDENTIFIER_TKN:
+                if (this.lexer.lookAheadToken(2).type === TokenType.LEFT_PARENS_TKN) {
+                    statement = this.parseCall();
+                } else {
+                    statement = this.parseDeclaration();
+                }
                 break;
             default:
-                throw err("Invalid statement: " + token.stringValue, token.line, token.col);
+                this.lexer.parseErr.errToken("Invalid statement", tkn);
         }
-        if (!this.assertToken(TokenType.SEMI_COLON_TKN)) {
-            let tkn = this.lexer.nextToken();
-            throw err("No semi-colon at statement end", tkn.line, tkn.col);
-        } else {
-            this.lexer.nextToken();
-        }
+        this.assertToken(TokenType.SEMI_COLON_TKN, ";", "Semi-colons are required at the end of statements");
+        this.lexer.nextToken();
         return statement;
     }
-    private parseDeclaration(): ASTDeclaration {
-        let declaration = new ASTDeclaration();
+    private parseDeclaration(): AST.ASTDeclaration {
+        let declaration = new AST.ASTDeclaration();
         declaration.lvalue = this.lexer.nextToken();
 
-        if (this.assertToken(TokenType.COLON_TKN)) {
+        if (this.checkToken(TokenType.COLON_TKN)) {
             this.lexer.nextToken();
             declaration.type = this.parseType();
         }
-        if (this.assertToken(TokenType.ASSIGNMENT_TKN)) {
+        if (this.checkToken(TokenType.ASSIGNMENT_TKN)) {
             this.lexer.nextToken();
-            declaration.rvalue = this.parseExpression();
+
+            if (this.lexer.matchAheadTokens(TokenType.LEFT_PARENS_TKN, TokenType.IDENTIFIER_TKN, TokenType.COLON_TKN)) {
+                declaration.rvalue = this.parseFunction();
+            } else {
+                declaration.rvalue = this.parseExpression();
+            }
         }
         return declaration;
     }
-    private parseType(): ASTType {
-        let astType = new ASTType();
-        if (this.assertToken(TokenType.LEFT_PARENS_TKN)) {
+    private parseType(): AST.ASTType {
+        let astType = new AST.ASTType();
+        if (this.checkToken(TokenType.LEFT_PARENS_TKN)) {
             this.lexer.nextToken();
             astType.inputType = [];
-            while (!this.assertToken(TokenType.RIGHT_PARENS_TKN)) {
-                if (!this.assertToken(TokenType.COMMA_TKN)) {
-                    astType.inputType.push(this.parseDeclaration());
+            while (!this.checkToken(TokenType.RIGHT_PARENS_TKN)) {
+                if (!this.checkToken(TokenType.COMMA_TKN)) {
+                    astType.inputType.push(this.parseType());
                 } else {
                     this.lexer.nextToken();
                 }
             }
             this.lexer.nextToken();
-            if (this.assertToken(TokenType.FUNC_MAPPING_TKN)) {
-                this.lexer.nextToken();
-                astType.outType = this.parseType();
-            }
+
+            this.assertToken(TokenType.FUNC_MAPPING_TKN, "->", "Function types must declare a return type");
+            this.lexer.nextToken();
+            astType.outType = this.parseType();
         } else {
-            astType.baseType = this.lexer.nextToken();
+            let tkn = this.lexer.nextToken();
+            switch (tkn.type) {
+                case TokenType.NUM_TKN:
+                case TokenType.STRING_TKN:
+                case TokenType.BOOL_TKN:
+                case TokenType.VOID_TKN:
+                case TokenType.IDENTIFIER_TKN:
+                    astType.type = tkn;
+                    break;
+                default:
+                    console.log(this.lexer.lex());
+                    console.log(tkn);
+                    this.lexer.parseErr.errToken("Invalid type", tkn);
+            }
         }
         return astType;
     }
-    private parseExpression(): ASTExpression {
-        let token = this.lexer.peekToken();
-        switch (token.type) {
+    private parseExpression(): AST.ASTExpression {
+        let tkn = this.lexer.peekToken();
+        switch (tkn.type) {
             case TokenType.NUMERIC_LITERAL_TKN:
-                let literal = new ASTExpression();
+            case TokenType.STRING_LITERAL_TKN:
+                let literal = new AST.ASTLiteral();
                 literal.value = this.lexer.nextToken();
                 return literal;
             default:
-                throw err("Invalid expression " + token.stringValue, token.line, token.col);
+                this.lexer.parseErr.errToken("Invalid expression", tkn);
         }
+    }
+    private parseFunction(): AST.ASTFunction {
+        let func = new AST.ASTFunction();
+
+        func.paramDeclaration = [];
+
+        this.assertToken(TokenType.LEFT_PARENS_TKN, "(");
+        this.lexer.nextToken();
+        while (!this.checkToken(TokenType.RIGHT_PARENS_TKN)) {
+            if (!this.checkToken(TokenType.COMMA_TKN)) {
+                func.paramDeclaration.push(this.parseDeclaration());
+            } else {
+                this.lexer.nextToken();
+            }
+        }
+        this.lexer.nextToken();
+
+        if (this.checkToken(TokenType.FUNC_MAPPING_TKN)) {
+            this.lexer.nextToken();
+            func.returnType = this.parseType();
+        }
+
+        func.block = this.parseBlock();
+
+        return func;
+    }
+    private parseCall(): AST.ASTCall {
+        let call = new AST.ASTCall();
+        call.functionName = this.lexer.nextToken();
+
+        call.givenParams = [];
+
+        this.assertToken(TokenType.LEFT_PARENS_TKN, "(");
+        this.lexer.nextToken();
+        while (!this.checkToken(TokenType.RIGHT_PARENS_TKN)) {
+            if (!this.checkToken(TokenType.COMMA_TKN)) {
+                call.givenParams.push(this.parseExpression());
+            } else {
+                this.lexer.nextToken();
+            }
+        }
+        this.lexer.nextToken();
+
+        return call;
     }
 }

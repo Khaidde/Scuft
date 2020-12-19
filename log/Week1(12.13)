@@ -21,7 +21,7 @@
         Recursive definition for Type
             f : (a: (b: num) -> num, c: bool) -> (d: num) -> string;
         Optional Parameters (easy way to overload functions)
-            g = (a = "happy", b:num)
+            g = (a = "happy", b:num);
             g (?, 3);
 
             setMaxPlayers : (maxPlayers = 3) = {
@@ -39,8 +39,51 @@
     - Added information to token to help with debugging (column, characterIndex, stringValue)
     - Changed error output format
 
-12/17/20
+12/17/20 (Thursday)
     Tasks
-    - Parsing type declarations 
+    - Fixing notion of Function Spoke
+    - Fix parsing functions/variable declarations
+    
+    Ideas 
+        Scope
+        - Functions have scope of minimum place they are (going up the AST)
+            - Functions give variables a notion of scope 
+            - Similarly for types
+            - Similarly for modules (modules are declared like variables)
+
+    Done
+    - Decided on function scope stuff
+    - Wrote function parsing: Distinguished between variable and function declaration 
+    - Created janky look-ahead 
+    - Decided on how the type system would work
+    - Introductory ideas to metaprogramming
+
+12/18/20 (Friday)
+    Tasks
+    - Fix block comment -> incorrect line
     - Parsing simple arithmetic op expressions ("+", "-" (negation), "*", etc.)
-    - Parsing functions
+    - Parsing Type declaration
+
+    Ideas
+        Underscore Separated Numbers
+        - a = 1000000000 <=> a = 1_000_000_000 <=> a = _1_0_0_0_0000_00_
+        Underscore in variable names
+        - this_is_a_variable = "cool value";
+        Built-In Math Constants
+        - a = _PI; b = _PHI; c = _PI2; d = _E etc...  
+        - Decide whether to implement this as a library or to create new keywords
+        Format in Hexadecimal and Binary
+        - a = 0xFF77F89; b = 0b1101001;
+    
+    Small Tasks
+    - Cleaned up lookAhead() and peekToken()
+    - Stopped storing character index variable in token
+    - Remove comment tokens from being parsed (single line and block comments)
+    - Claimed that tokens can only span a single line
+    - All Blocks (function blocks, if blocks, etc) are now parsed the same
+    - Created formatted AST console log for debugging
+    - Revamped error messages to be more descriptive/clear
+
+12/19/20 (Saturday)
+    Tasks
+    - Fix semi-colon error message to point at correct location

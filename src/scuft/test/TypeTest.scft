@@ -1,3 +1,0 @@
-simpleTest1 : boolean;
-simpleTest2 : (a: num, b: num) -> string; 
-crazyF : ((a: num, b: num) -> num, (a: num, b: num) -> string, b: boolean, c: num) -> num -> num;

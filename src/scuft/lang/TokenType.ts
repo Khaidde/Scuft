@@ -73,10 +73,9 @@ enum TokenType {
     OP_DIV_EQUALS_TKN,
 
     //Miscellaneous
+    DOUBLE_QUOTE_TKN,
     DOT_TKN,
     ELLIPSES_TKN, // for [array] doSomething(...)
-    COMMENT_TKN,
-    BLOCK_COMMENT_TKN,
     COMMA_TKN,
     SEMI_COLON_TKN,
     UNKNOWN_TKN,

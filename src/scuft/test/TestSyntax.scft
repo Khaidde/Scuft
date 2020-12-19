@@ -1,0 +1,138 @@
+Vec3 = type {
+    x: num;
+    y: num;
+    z: num;
+}
+
+Astrology = module {
+    stars = 30000;
+    lightUp = [] () {}
+}
+
+Astrology2 = module {
+    stars = 4000;
+    lightUp = [] () {}
+}
+
+doFuncThing = (func: (a: num) -> void, b: Particle) {
+    func(b);
+}
+
+fun2 = (b:(a: num) -> void) {
+
+}
+
+fun3 = (a + c);
+
+b: num;
+b = 3;
+var_test = 3;
+
+main = () { // You can capture variables, functions, and modules
+    b = 4;
+    a = Particle;
+
+    p: Particle;
+    if #typeof p === a;
+#typeof (#typeof p)
+#typeof Particle => type
+    
+    type Particle {
+        id: num;
+        // pos: <num, num, num>;
+        // vel: Vec3;
+    }
+
+    testF = [*] (val: Particle) -> void {
+        p.x = 20;
+    }
+
+    doFuncThing(testF, p);
+
+    lightUp();
+    stars;
+
+    add = [] (particle: Particle, particle2: Particle) -> void {
+        //Something
+        s = 3;
+    }
+
+    functionABC = [] (a: num, b: num) -> num {
+        return a + b;
+    }
+
+    a : num = 3; //declare variable "a" with value 3 
+
+    a' = 4; //apostrophes allowed in identifier
+
+    /*
+    Block comments!
+    */
+    b = 3; //Implicit num variable declaration
+
+    c : string = "c string";
+
+    functionABC(2, a); //Function call
+
+    particle = Particle { //Type Constructor
+        pos = <1, 2, 3>;
+    };
+    particle2 = Particle{};
+
+    print = [] (prefix: string, particle: Particle) -> void {
+        sysout(prefix + particle.pos<0>);
+        sysout(prefix + particle.vel.x);
+    }
+
+    arrayOfParticles: <Particle>**100; // Tentative 
+    array2OfParticles: <Particle>**60;
+
+    matrixOfParticles: <<Particle>**10>**10; // Tentative
+
+    loop = [] {
+        for i = 0, i < 10, i++ {
+            for arrayOfParticles loop();
+        }
+    }
+
+    for arrayOfParticles {
+        loop();
+    }
+    for arrayOfParticles print(...);
+
+    for i = 0, i < arrayOfParticles.length, i++ loop(); //Figure out if this can be broken
+
+    for i = 0, i < arrayOfParticles.length, i++ {
+        print(arrayOfParticles[i]);
+    }
+
+    a: num = 3;
+    fun = [a] {
+        a;
+        fun();
+    }
+    a: Particle;
+    a.callFn(fun);
+
+    asdf = 5;
+    fun = [] (x: num) -> num {    
+        return 4 * x + 6 * sin(x) + asdf;
+    }
+
+    fun' = [] (x: num) -> num {    
+        return 4 + 6 * cos(x);
+    }
+    expr = #expr (x: num) 4 * x ^ 2 + 6 * sin(x);
+    expr' = #d expr x;
+
+    fun2 = [] (x: num, y: num) -> num = {    
+        return 4 + 6 * cos(x) + y;
+    }
+
+    r: (num) -> <num, num, num> = #expr t <3, 2, 3>;
+    r1 = [] (t: num) -> <num, num, num> {    
+        return <3, 2, 3>;
+    }
+    r' = #d r t;
+}
+

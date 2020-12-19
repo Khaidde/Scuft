@@ -1,0 +1,41 @@
+//Simple Test file for quick prototyping
+
+/**/
+/*
+This is a block
+comment
+*/
+/*
+c3 = (num, num) -> <num, num> {
+
+};
+*/
+
+testVar: num = 345.6;
+a1=3; 
+cats: string;
+
+b2: (num, num) -> num = 3;
+
+c2: ((num) -> void) -> string = (a: (num) -> void) -> string{
+    abc_def(1, 2, 34);
+    cool = (a: num, b: string) -> boolean {
+        abc_def(3, 4, 1);
+    };
+    cool(2, 3);
+};
+
+c2(23_400, "this is cool", 3);
+
+c3 : (num) -> void = (a: (num) -> void) {
+    a();
+};
+
+func = (a: num) {
+    //print("a");
+};
+c3("func");
+
+b = (a: num) {
+    //a + a;
+};

@@ -1,24 +1,23 @@
 import TokenType from "./TokenType";
 
 export default class Token {
-    type: TokenType;
-    typeName: string;
+    stringValue: string; // string of token in written program
+
     line: number;
     col: number;
-    ch: number;
+
+    type: TokenType;
+    typeName: string;
 
     value!: number | string;
 
-    stringValue: string; // string of token in progra
-    constructor(type: TokenType, line: number, col: number, ch: number, str: string) {
-        this.type = type;
-        this.typeName = TokenType[type];
+    constructor(stringValue: string, line: number, col: number, type: TokenType) {
+        this.stringValue = stringValue;
+
         this.line = line;
         this.col = col;
-        this.ch = ch;
-        this.stringValue = str;
-    }
-    getTypeName(): string {
-        return TokenType[this.type];
+
+        this.type = type;
+        this.typeName = TokenType[type];
     }
 }

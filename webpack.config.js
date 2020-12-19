@@ -10,6 +10,11 @@ module.exports = {
                 test: /\.ts?$/,
                 use: "ts-loader",
                 include: [path.resolve(__dirname, "src")]
+            },
+            {
+                test: /\.scft$/,
+                loader: 'raw-loader',
+                include: [path.resolve(__dirname, "src")]
             }
         ]
     },

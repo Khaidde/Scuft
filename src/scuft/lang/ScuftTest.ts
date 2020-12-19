@@ -1,18 +1,31 @@
 import Lexer from "./Lexer";
 import Parser from "./Parser";
-import TokenType from "./TokenType";
+
+import simpleTest from "../test/1-SimpleTest.scft";
+import literalTest from "../test/2-LiteralTest.scft";
+import typeTest from "../test/3-TypeTest.scft";
+
+import testFile from "./TestFile.scft";
+
+import * as ASTDebug from "./Ast";
 
 export default function () {
-    let input = "testVar: num = 345.6;\n a1=3; cats: string;";
+    function testString(input: string) {
+        // let lexer = new Lexer(input);
+        // console.log(lexer.lex());
 
-    let l: Lexer = new Lexer(input);
-    console.log(l.lex());
+        let parser = new Parser(new Lexer(input));
+        let prgm = parser.parseProgram();
+        console.log(prgm);
 
-    let p: Parser = new Parser(new Lexer(input));
-    console.log(p.parseProgram());
+        ASTDebug.printAST(prgm);
 
-    console.log("---------------------");
+        console.log("---------------------");
+    }
+    testString(simpleTest);
+    testString(literalTest);
+    testString(typeTest);
+    testString(testFile);
 
-    let input2 = "b2: (a:num, b:num) -> num = 3;";
-    console.log(new Parser(new Lexer(input2)).parseProgram());
+    // testString("b2 = (a: num, b: num) -> num {};");
 }
