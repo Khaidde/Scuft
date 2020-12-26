@@ -1,0 +1,170 @@
+12/21/20 (Monday)
+    Tasks
+    - Add EOF token check in while loops (parser)
+    - Fix parenthesis checking to be less "janky"
+    - Implement boolean expression stuff
+    - Implement bitwise expression stuff
+    
+    Small Tasks
+    - Fixed the parenthesis jankiness so that correct errors are thrown
+    - Fixed expectedAfterLast error messages
+
+12/22/20 (Tuesday)
+    Tasks
+    - Add EOF token check in while loops (parser)
+    - Implement boolean expression stuff
+    - Implement bitwise expression stuff    
+    - Type Declaration parsing
+
+    Done
+    - Implement boolean expression stuff
+    - Implement bitwise expression stuff 
+    - Add EOF token check in while loops (parser)
+    - Implemented return statement 
+    - Modules, type definitions, refactored program
+    - Syntax of modules and types relatively finalized
+    - "With" keyword defined
+    - Type construction 
+
+12/23/20 (Wednesday)
+    Tasks 
+    - More error handler refactoring
+    - Assert that variable declarations must either have a type declaration OR assignment: "variable;" should be invalid
+    - Make semi-colons optional for function declarations
+    - For/while loops
+    - If/elseif/else conditionals
+    - Dot expressions for types
+    - Lambda parsing
+    
+    Ideas
+        All variables are constant by default
+            a: num = 3; //constant
+            a: ~num ~= 4 //mutable
+        Typeof
+            type Particle {
+                a: num;
+                b: num;
+            }
+            //base includes num, string, boolean, void, type
+
+            a = Particle {
+                a = 3;
+                b = 3;
+            }
+
+            b = typeof a {
+                // has = or ~=
+            }
+
+            daysUntilChristmas = 2;
+            typeof daysUntilChristmas; // num
+            a: typeof daysUntilChristmas; //This may or may not be allowed 
+
+            //Typeof can work on any declared variable
+            // typeof Particle is not allowed because Particle is not a declared variable
+            // typeof for and typeof type is not allowed for similar reasons
+        metaprogramming
+            nameof (a) // "a"
+            particle: Particle = factory(Particle);
+            factory = (a: type) -> ??? {
+                obj = a {};
+                return obj;
+            }
+        Function Overloading
+            // associate parameter dec with function identifier
+            \x = x * x
+            
+            add: (num, num) -> num = (n0: num, n1: num) -> num {
+                ...
+            }
+            add = (s0 : ~string, s1 : string) -> ~string {
+                ...
+            }
+            add = 3; // have to check if it's a function
+
+            // Functions will have their types adjust for this issue (provided the functions are constant)
+            // This would break variables, since then a = 2; a = 3; would be valid syntax
+
+    Small Tasks
+    - During parsing, if blocks, function blocks, etc. are not checked for type definitions or modules
+        - Prevent user from including type definitions/modules in function blocks in a later stage  
+    - Assert that variable declarations must either have a type declaration OR assignment: "variable;" should be invalid
+        - Error outputed that "Expressions can't serve as statements in this language"
+
+12/24/20 (Thursday)
+    Tasks 
+    - Make semi-colons optional for function declarations
+    - For/while loops
+    - If/elseif/else conditionals
+    - Dot expressions for types
+    - Lambda parsing
+
+    Small Tasks
+    - Tested every error message to ensure that they all generally work as expected
+    - Made semi-colons optional for function declarations
+    - Made change in parseExpression so that "a = 3 [ 5" passes through parseExpression. Should test all error messages again
+        - Made a couple tweaks to the parseExpression function as a whole
+    - If/elseif/else conditionals
+    - while loops
+
+12/25/20 (Friday)
+    Tasks 
+    - Dot expressions for types
+    - Lambda parsing
+    - Continue/break statements;
+
+    Ideas
+        For loops (remove while loops and only have for loops)
+            for i in [0, 20) {
+                ...
+            }
+
+            for item, index in array {
+
+            }
+
+            for array {
+                doStuffOnItemInArray( ... );
+            }
+
+    Small Tasks
+    - Implemented all cases of for loops. Make sure that the error messages are working as expected
+    - Implemented continue/break statements
+    - Implemented dot operator for most cases. Still needs some testing and potential error messages
+
+12/26/20 (Saturday)
+    Tasks
+    - Make sure that the for loop error messages are working as expected
+    - Make sure dot operator error messages are working as expected
+    - Verify error messages again in while loops of parseType, parseTypeConstruction, parseFunction, parseCall
+    - Finally start on type checking/semantic analysis
+
+    Ideas
+        Constant Variable Ordering
+
+            //This should definitely work
+            doOtherStuff = () {
+                value = add(3, 2);
+            }
+            add = (a: num, b: num) -> num {
+                return a + b;
+            }
+
+            //This might also work?
+            doStuff = () {
+                // print(mutVar) This line would throw an error because mutable is not known at compile time
+                print(constA); This line w
+
+                mutVar ~= 0;
+                mutVar ~= mutVar + 1; //Note that mutVar variables must be declared in order 
+                print(add(mutVar + constA, constB));
+
+                // Const variables can be declared out of order (in this case: end of the scope)
+                constA = 3;
+                constB = 4;
+
+                // Const variable declaration being assign a function as a value
+                add = (a: num, b: num) -> num {
+                    return a + b;
+                }
+            }

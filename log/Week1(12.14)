@@ -21,15 +21,17 @@
         Recursive definition for Type
             f : (a: (b: num) -> num, c: bool) -> (d: num) -> string;
         Optional Parameters (easy way to overload functions)
-            g = (a = "happy", b:num);
+            g = (a = "happy", b:num) {
+
+            }
             g (?, 3);
 
-            setMaxPlayers : (maxPlayers = 3) = {
-                ...maxPlayers = maxPlayers;
+            setMaxPlayers = (maxPlayers = 3) {
+                globalSettings.maxPlayers = maxPlayers;
             }
 
             // Compiles to setMaxPlayers(3);
-            setMaxPlayers(?); // what the syntax would like to get 3
+            setMaxPlayers(?); // what the syntax would look like to get 3
 
     Done
     - Refactored lexer to cleaner format (by Calvin's standards)
@@ -41,7 +43,7 @@
 
 12/17/20 (Thursday)
     Tasks
-    - Fixing notion of Function Spoke
+    - Fixing notion of Function scope
     - Fix parsing functions/variable declarations
     
     Ideas 
@@ -87,3 +89,12 @@
 12/19/20 (Saturday)
     Tasks
     - Fix semi-colon error message to point at correct location
+    - More error message formatting and refactoring
+
+    Small Tasks
+    - Fixed error handling messages and made some error messages more descriptive
+    - Moved all lexer peek, lookAhead and matchAhead functions into the parser. Much cleaner now.
+
+12/20/20 (Sunday)
+    Done
+    - Implemented simple expression parsing ((3 + -4) * sin(5 + 2 ^ 4))

@@ -2,13 +2,10 @@ import Lexer from "./Lexer";
 import Parser from "./Parser";
 
 import simpleTest from "../test/1-SimpleTest.scft";
-import literalTest from "../test/2-LiteralTest.scft";
-import typeTest from "../test/3-TypeTest.scft";
-
-import testFile from "./TestFile.scft";
+import expressionTest from "../test/4-ExpressionTest.scft";
+import moduleTypeDefTest from "../test/5-ModuleTypeDefinitionTest.scft";
 
 import * as ASTDebug from "./Ast";
-
 export default function () {
     function testString(input: string) {
         // let lexer = new Lexer(input);
@@ -22,10 +19,11 @@ export default function () {
 
         console.log("---------------------");
     }
-    testString(simpleTest);
-    testString(literalTest);
-    testString(typeTest);
-    testString(testFile);
+    // testString(simpleTest);
+    // testString(literalTest);
+    // testString(typeTest);
+    //testString(expressionTest);
+    testString(moduleTypeDefTest);
 
     // testString("b2 = (a: num, b: num) -> num {};");
 }

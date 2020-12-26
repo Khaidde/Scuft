@@ -1,0 +1,105 @@
+type Point {
+    x: num;
+    y: num;
+    z: num;
+}
+
+type Particle {
+    point: Point;
+    existence: bool = true;
+    glowing: bool;
+    name: string;
+    message = "facets";
+}
+
+module test {
+    x: num = 4;
+    add = (a: num, b: num) -> num {
+        return a + b;
+    }
+    booolerrr: (bool, bool, num, num) -> bool = (a.TODO_LOOK.AT_THIS: bool, b: bool, x: Astrology.Star, y: num) -> bool {
+        d = x > y $$ a && b || (a || b);
+
+        for i in [0, 10) {
+            //0...9
+            break;
+        }
+        for i in (0, 10) {
+            //1...9
+
+            continue;
+            break;
+        }
+        for i in (0, 10] {
+            //1...10
+        }
+        for i in [0, 10] {
+            //1...10
+            construct = 3 + Astrology.Star.Proton{ intersting = true, notInteresting = false }; 
+            test.thing.x = new * 3 - particle.pos.x + 2;
+            thingyVar.that.this.random.bar(cool, 3);
+        }
+        for list {
+
+        }
+        for item in Astrology.starArray {
+
+        }
+        for item,index in array {
+
+        }
+        return d;
+    }
+    type Vector4 {
+        w: num;
+        x: num;
+        y: num;
+        z: num;
+    }
+    combine = (a: Vector4, b: Vector4) -> Vector4 {
+        return a + b;
+    }
+}
+
+module Astrology {
+    stars = 5000;
+    ageOfUniverse = 6000;
+    findDate = (a: num) -> num {
+        return ageOfUniverse;
+    }
+    type Constellation {
+        name: string;
+        starsCount: num;
+        isItGood: bool;
+        interpretation: string;
+    }
+    meaning = (a: Constellation) -> Constellation {
+        nothing = Constellation {
+            name = "nothing",
+            starsCount = 3 + func(3, 4 + 5) + 5
+        };
+        while 3 < 2  {
+            if 3 < 4 {
+                return "thisOrThat";
+            } else if 3 != 4 {
+                d = 90;
+                return d;
+            } else {
+                return "k";
+            }
+        }
+        return nothing;
+    }
+}
+
+main = () -> number {
+    with Astrology;
+    with test;
+    a: Point;
+    b: constellation;
+    q = meaning(b);
+    l: Vector4;
+    l': Vector4;
+    dl = combine(l, -l');
+    return;
+}

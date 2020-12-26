@@ -1,9 +1,12 @@
+	    	num2    :  num       = 239.48230941_007
 str   :    string =    "Hello    W\:orl   d";  
 str2              =   "line thing \n with more stuff";
 str3: string      = "quotes \"within a \" quote";
 
 num1 :  num =  239_48230941
-num2    :  num       = 239.48230941.000
+
+//Test with tab characters
+	    	num2    :  num       = 239.48230941.000
 num3    =       239 48230941.000
 num4    = 280082348
 num5    =       ~342`009*93844234090w1+9034 

@@ -1,99 +1,104 @@
 import Token from "./Token";
 import TokenType from "./TokenType";
 
-function isWhitespace(ch: string): boolean {
-    return ch === " " || ch === "\t" || ch === "\r" || ch === "\n";
-}
-function isLetter(ch: string): boolean {
-    let n = ch.charCodeAt(0);
-    return (n >= 65 && n < 91) || (n >= 97 && n < 123) || ch === "'" || ch === "_";
-}
-function isNumber(ch: string): boolean {
-    let n = ch.charCodeAt(0);
-    return (n >= 48 && n <= 57) || ch === "_";
-}
-function getLine(text: string, line: number): string {
-    let lineCount = 1;
-    let cur = 0;
-    while (lineCount < line) {
-        if (text.charAt(cur) === "\n") {
-            lineCount++;
-        }
-        cur++;
-    }
-    let end = cur;
-    while (end < text.length && text.charAt(end) !== "\n") {
-        end++;
-    }
-    return text.substr(cur, end - cur);
-}
-function strNumber(value: number, length: number): string {
-    let str = value + "";
-    for (let i = 0; i < length - str.length; i++) {
-        str = " " + str;
-    }
-    return str;
-}
+class ErrorHandler {
+    private readonly tabWidth = 4;
+    private lexer: Lexer;
+    private lines: string[] = [];
+    constructor(lexer: Lexer) {
+        this.lexer = lexer;
 
-function trimLeft(str: string): string {
-    let cur = 0;
-    let trimmed = "";
-    while (isWhitespace(str.charAt(cur))) {
-        trimmed += str.charAt(cur);
-        cur++;
-    }
-    return trimmed;
-}
-
-class ParseErrorHandler {
-    private prgmString: string;
-    constructor(prgmString: string) {
-        this.prgmString = prgmString;
-    }
-    errToken(msg: string, token: Token): never {
-        let lineStr = getLine(this.prgmString, token.line);
-        let cur = 0;
-        let ch = lineStr.charAt(0);
-        let trimmedAmt = 0;
-        while (isWhitespace(ch)) {
-            if (ch === "\t") {
-                trimmedAmt += 4;
-            } else {
-                trimmedAmt++;
+        let begin = 0;
+        let lineCount = 1;
+        for (let i = 0; i < this.lexer.prgmString.length; i++) {
+            if (this.lexer.prgmString.charAt(i) === "\n") {
+                this.lines[lineCount++] = this.lexer.prgmString.slice(begin, i);
+                begin = i + 1;
             }
-            cur++;
-            ch = lineStr.charAt(cur);
         }
-        lineStr = lineStr.slice(cur);
-        let indicator = "";
-        for (let i = 0; i < token.col - trimmedAmt - 1; i++) {
-            indicator += " ";
+        this.lines[lineCount] = this.lexer.prgmString.slice(begin, this.lexer.prgmString.length);
+    }
+    private getColLength(str: string): number {
+        let res = 0;
+        for (let i = 0; i < str.length; i++) {
+            if (str.charAt(i) === "\t") {
+                res += this.tabWidth;
+            } else {
+                res++;
+            }
         }
+        return res;
+    }
+    private errorHeader(msg: string, line: number, c?: number): string {
+        let optionalCol = "";
+        if (c !== undefined) {
+            optionalCol = ", col:" + (this.getColLength(this.lines[line].slice(0, c)) + 1);
+        }
+        return "(line:" + line + optionalCol + "): " + msg + "\n";
+    }
+    private formatLine(leftIndentSpace: number, line: number, fileLine: string): string {
+        if (line < 1) return "";
+        let strNumber = line + "";
+        for (let i = 0; i < leftIndentSpace - strNumber.length; i++) {
+            strNumber = " " + strNumber;
+        }
+        return "\t" + strNumber + "\t" + fileLine + "\n";
+    }
+    private getFileLine(line: number): string {
+        return this.lines[line].trimLeft().split("\t").join(" ");
+    }
+    private makeIndicator(line: number, c0: number, c1: number): string {
+        console.assert(c0 >= 0, "c0=%s must be non-negative", c0);
+        console.assert(c1 > c0, "c1=%s must be larger than c0=%s", c1, c0);
+        let indentLen = this.lines[line].length - this.lines[line].trimLeft().length;
+        return " ".repeat(c0 - indentLen) + "^".repeat(c1 - c0);
+    }
+    newErrPoint(msg: string, line: number, c: number): string {
+        let error = this.errorHeader(msg, line, c);
+        let len = Math.floor(Math.log10(line + 1)) + 1;
+        error += this.formatLine(len, line - 1, "");
+        error += this.formatLine(len, line, this.getFileLine(line));
+        error += this.formatLine(len, line + 1, this.makeIndicator(line, c, c + 1));
+        return error;
+    }
+    newErrToken(msg: string, token: Token): string {
+        return this.newErrPoint(msg, token.line, token.c);
+    }
+    newErrAfterLastToken(msg: string, curToken: Token): string {
+        let curLine = curToken.line;
+        let curLineStr = this.lines[curLine];
+        let cur = curToken.c;
+        do {
+            if (cur <= 0) {
+                curLine--;
+                curLineStr = this.lines[curLine];
+                cur = curLineStr.length;
+            }
+            cur--;
+        } while (Lexer.isWhitespace(curLineStr.charAt(cur)));
 
-        let error = "ParseError(line:" + token.line + ", col:" + token.col + "): " + msg + "\n";
-        let len = Math.floor(Math.log10(token.line + 1)) + 1;
-        if (token.line !== 1) error += strNumber(token.line - 1, len) + "\n";
-        error += strNumber(token.line, len) + "\t\t" + lineStr + "\n";
-        error += strNumber(token.line + 1, len) + "\t\t" + indicator + "^\n";
-        throw error;
+        return this.newErrPoint(msg, curLine, cur + 1);
     }
 }
 export default class Lexer {
-    readonly parseErr: ParseErrorHandler;
+    readonly errHandler: ErrorHandler;
     readonly prgmString: string;
     private curIndex = 0;
     private curLine = 1;
-    private curCol = 1;
+    private curC = 0;
     constructor(prgmString: string) {
         this.prgmString = prgmString;
-        this.parseErr = new ParseErrorHandler(prgmString);
+        this.errHandler = new ErrorHandler(this);
+    }
+    private err(msg: string, line: number, ch: number) {
+        throw this.errHandler.newErrPoint(msg, line, ch);
     }
     lex(): Token[] {
         let tokens: Token[] = [];
-        let token = this.createToken();
+        let token = this.nextToken();
         while (token.type !== TokenType.END_TKN) {
             tokens.push(token);
-            token = this.createToken();
+            token = this.nextToken();
         }
         tokens.push(token);
         return tokens;
@@ -110,71 +115,15 @@ export default class Lexer {
     private incrementCurIndex(amount: number) {
         if (this.getCurChar() === "\n") {
             this.curLine++;
-            this.curCol = 0;
+            this.curC = -1;
         }
         this.curIndex += amount;
-        this.curCol += amount;
-    }
-    matchAheadTokens(...tokenTypes: TokenType[]): boolean {
-        let lastCurIndex = this.curIndex;
-        let lastCurCol = this.curCol;
-        let lastCurLine = this.curLine;
-        let lastlastIndex = this.lastIndex;
-        let lastPeekToken = this.peekTkn;
-
-        let res = true;
-        for (let i = 0; i < tokenTypes.length; i++) {
-            if (tokenTypes[i] !== this.nextToken().type) {
-                res = false;
-                break;
-            }
-        }
-        this.curIndex = lastCurIndex;
-        this.curCol = lastCurCol;
-        this.curLine = lastCurLine;
-        this.lastIndex = lastlastIndex;
-        this.peekTkn = lastPeekToken;
-        return res;
-    }
-    lookAheadToken(amount: number): Token {
-        if (amount <= 0) {
-            throw "Must look ahead by number greater than 0";
-        }
-        let lastCurIndex = this.curIndex;
-        let lastCurCol = this.curCol;
-        let lastCurLine = this.curLine;
-        let lastlastIndex = this.lastIndex;
-        let lastPeekToken = this.peekTkn;
-        for (let i = 0; i < amount - 1; i++) {
-            this.nextToken();
-        }
-        let tkn = this.nextToken();
-        this.curIndex = lastCurIndex;
-        this.curCol = lastCurCol;
-        this.curLine = lastCurLine;
-        this.lastIndex = lastlastIndex;
-        this.peekTkn = lastPeekToken;
-        return tkn;
-    }
-    private peekTkn!: Token;
-    private lastIndex: number = 0;
-    peekToken(): Token {
-        if (this.curIndex <= this.lastIndex) {
-            this.peekTkn = this.createToken();
-        }
-        return this.peekTkn;
+        this.curC += amount;
     }
     nextToken(): Token {
-        let tkn = this.peekToken();
-        this.lastIndex = this.curIndex;
-        return tkn;
-    }
-    private createToken(): Token {
         //Clear Whitespace
-        let ch = this.getCurChar();
-        while (isWhitespace(ch)) {
+        while (Lexer.isWhitespace(this.getCurChar())) {
             this.incrementCurIndex(1);
-            ch = this.getCurChar();
         }
 
         //Return end token if end of string input reached
@@ -272,7 +221,7 @@ export default class Lexer {
                     case "-":
                         return this.grabToken("--", TokenType.OP_SUBTR_SUBTR_TKN);
                     case ">":
-                        return this.grabToken("->", TokenType.FUNC_MAPPING_TKN);
+                        return this.grabToken("->", TokenType.MAPPING_TKN);
                     default:
                         return this.grabToken("-", TokenType.OP_SUBTR_TKN);
                 }
@@ -287,10 +236,10 @@ export default class Lexer {
                 switch (this.getNextChar()) {
                     case "/":
                         this.consumeSingleLineComment();
-                        return this.createToken();
+                        return this.nextToken();
                     case "*":
                         this.consumeBlockComment();
-                        return this.createToken();
+                        return this.nextToken();
                     case "=":
                         return this.grabToken("/=", TokenType.OP_DIV_EQUALS_TKN);
                     default:
@@ -317,13 +266,13 @@ export default class Lexer {
             case '"':
                 return this.grabStringLiteral();
             default:
-                if (isLetter(ch)) {
+                if (Lexer.isLetter(this.getCurChar())) {
                     return this.grabIdentifier();
-                } else if (isNumber(ch)) {
+                } else if (Lexer.isNumber(this.getCurChar())) {
                     return this.grabNumericLiteral();
                 } else {
-                    let unknown = this.grabToken(ch, TokenType.UNKNOWN_TKN);
-                    unknown.value = ch;
+                    let unknown = this.grabToken(this.getCurChar(), TokenType.UNKNOWN_TKN);
+                    unknown.value = this.getCurChar();
                     return unknown;
                 }
         }
@@ -333,7 +282,7 @@ export default class Lexer {
         return this.makeToken(str, type);
     }
     private makeToken(str: string, type: TokenType): Token {
-        let tkn = new Token(str, this.curLine, this.curCol - str.length, type);
+        let tkn = new Token(str, this.curLine, this.curC - str.length, type);
         return tkn;
     }
     private grabNumericLiteral(): Token {
@@ -342,7 +291,7 @@ export default class Lexer {
         let ch = this.getCurChar();
         let point = false;
         let divideBy = 1;
-        while (isNumber(ch) || ch === ".") {
+        while (Lexer.isNumber(ch) || ch === ".") {
             stringValue += ch;
             if (ch !== "_") {
                 if (ch === ".") {
@@ -352,12 +301,11 @@ export default class Lexer {
                         ch = this.getCurChar();
                         continue;
                     } else {
-                        throw "";
-                        // err(
-                        //     'Invalid Number (too many decimal points): "' + number / divideBy + '."',
-                        //     this.curLine,
-                        //     this.curCol
-                        // );
+                        this.err(
+                            'Number has too many decimal points"' + number / divideBy + '."',
+                            this.curLine,
+                            this.curC
+                        );
                     }
                 }
                 number = 10 * number + parseInt(ch);
@@ -397,7 +345,7 @@ export default class Lexer {
     private grabIdentifier(): Token {
         let str = "";
         let ch = this.getCurChar();
-        while (isLetter(ch) || isNumber(ch)) {
+        while (Lexer.isLetter(ch) || Lexer.isNumber(ch)) {
             this.incrementCurIndex(1);
             str = str + ch;
             ch = this.getCurChar();
@@ -407,19 +355,22 @@ export default class Lexer {
                 return this.makeToken("type", TokenType.TYPE_TKN);
             case "module":
                 return this.makeToken("module", TokenType.MODULE_TKN);
-
-            case "for":
-                return this.makeToken("for", TokenType.FOR_TKN);
-            case "while":
-                return this.makeToken("while", TokenType.WHILE_TKN);
-            case "break":
-                return this.makeToken("break", TokenType.BREAK_TKN);
-            case "continue":
-                return this.makeToken("continue", TokenType.CONTINUE_TKN);
+            case "with":
+                return this.makeToken("with", TokenType.WITH_TKN);
             case "if":
                 return this.makeToken("if", TokenType.IF_TKN);
             case "else":
                 return this.makeToken("else", TokenType.ELSE_TKN);
+            case "while":
+                return this.makeToken("while", TokenType.WHILE_TKN);
+            case "for":
+                return this.makeToken("for", TokenType.FOR_TKN);
+            case "in":
+                return this.makeToken("in", TokenType.IN_TKN);
+            case "break":
+                return this.makeToken("break", TokenType.BREAK_TKN);
+            case "continue":
+                return this.makeToken("continue", TokenType.CONTINUE_TKN);
 
             //Bitwise Operators
             case "or":
@@ -445,7 +396,7 @@ export default class Lexer {
             case "bool":
                 return this.makeToken("bool", TokenType.BOOL_TKN);
 
-            // functions
+            // lambdas
             case "return":
                 return this.makeToken("return", TokenType.RETURN_TKN);
 
@@ -465,5 +416,16 @@ export default class Lexer {
             this.incrementCurIndex(1);
         }
         this.incrementCurIndex(2);
+    }
+    static isWhitespace(ch: string): boolean {
+        return ch === " " || ch === "\t" || ch === "\r" || ch === "\n";
+    }
+    static isLetter(ch: string): boolean {
+        let n = ch.charCodeAt(0);
+        return (n >= 65 && n < 91) || (n >= 97 && n < 123) || ch === "'" || ch === "_";
+    }
+    static isNumber(ch: string): boolean {
+        let n = ch.charCodeAt(0);
+        return (n >= 48 && n <= 57) || ch === "_";
     }
 }

@@ -14,15 +14,17 @@ enum TokenType {
     LEFT_PARENS_TKN,
     RIGHT_PARENS_TKN,
 
-    // Keywords
-    FOR_TKN,
-    WHILE_TKN,
-    BREAK_TKN,
-    CONTINUE_TKN,
-    IF_TKN,
-    ELSE_TKN,
+    // Statement Keywords
     TYPE_TKN,
     MODULE_TKN,
+    WITH_TKN,
+    IF_TKN,
+    ELSE_TKN,
+    WHILE_TKN,
+    FOR_TKN,
+    IN_TKN,
+    BREAK_TKN,
+    CONTINUE_TKN,
 
     // Conditionals
     COND_OR_TKN, // ||
@@ -53,8 +55,8 @@ enum TokenType {
     BIN_SHIFT_ARITHMETIC_RIGHT_TKN, // >>>
     BIN_SHIFT_LEFT_TKN, // <<
 
-    // Func Defs
-    FUNC_MAPPING_TKN, // () "->" void
+    // Lambda Defs
+    MAPPING_TKN, // () "->" void
     RETURN_TKN,
 
     // Operators

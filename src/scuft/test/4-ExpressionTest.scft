@@ -1,0 +1,18 @@
+boolean  = ((3 > 4 && 6 || false) $$ true) && ((3 != x) $$ (x!=4));
+boolean' = true;
+booleanFunc  = (a: bool) -> bool {
+    b = (3 + a * 9 > 100 $$ a*9 < 100);
+};
+booleanFunc' = (a: bool, b: bool, c: bool) -> bool {
+    d = a $$ b && c || a;
+    return d && a || !d;
+};
+		    	baaa		 = 2;
+testVar: num = 345.6 + "test" * -5 - 6 - sin(cos(x), y) ^ 3;
+
+a = (a:num, b:num) {
+    return;
+};
+a' = () -> num {
+    return;
+};

@@ -10,11 +10,11 @@ c3 = (num, num) -> <num, num> {
 
 };
 */
-
-testVar: num = 345.6;
-a1=3; 
+//a1 = 3 + (a: num) {}() + 3 * 5;
+//a2 = 3 + (\a -> a)(5) * 8;
+//a3 = \a -> a
+//a2 = (3   ) ;
 cats: string;
-
 b2: (num, num) -> num = 3;
 
 c2: ((num) -> void) -> string = (a: (num) -> void) -> string{
@@ -38,4 +38,9 @@ c3("func");
 
 b = (a: num) {
     //a + a;
+};
+
+doSomething = 3 + 5;
+a = (a: num) {
+
 };
