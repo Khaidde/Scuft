@@ -1,97 +1,15 @@
-import Token from "./Token";
-import TokenType from "./TokenType";
+import { ErrorHandler } from "./ErrorHandler";
+import { Token, TokenType } from "./Token";
 
-class ErrorHandler {
-    private readonly tabWidth = 4;
-    private lexer: Lexer;
-    private lines: string[] = [];
-    constructor(lexer: Lexer) {
-        this.lexer = lexer;
-
-        let begin = 0;
-        let lineCount = 1;
-        for (let i = 0; i < this.lexer.prgmString.length; i++) {
-            if (this.lexer.prgmString.charAt(i) === "\n") {
-                this.lines[lineCount++] = this.lexer.prgmString.slice(begin, i);
-                begin = i + 1;
-            }
-        }
-        this.lines[lineCount] = this.lexer.prgmString.slice(begin, this.lexer.prgmString.length);
-    }
-    private getColLength(str: string): number {
-        let res = 0;
-        for (let i = 0; i < str.length; i++) {
-            if (str.charAt(i) === "\t") {
-                res += this.tabWidth;
-            } else {
-                res++;
-            }
-        }
-        return res;
-    }
-    private errorHeader(msg: string, line: number, c?: number): string {
-        let optionalCol = "";
-        if (c !== undefined) {
-            optionalCol = ", col:" + (this.getColLength(this.lines[line].slice(0, c)) + 1);
-        }
-        return "(line:" + line + optionalCol + "): " + msg + "\n";
-    }
-    private formatLine(leftIndentSpace: number, line: number, fileLine: string): string {
-        if (line < 1) return "";
-        let strNumber = line + "";
-        for (let i = 0; i < leftIndentSpace - strNumber.length; i++) {
-            strNumber = " " + strNumber;
-        }
-        return "\t" + strNumber + "\t" + fileLine + "\n";
-    }
-    private getFileLine(line: number): string {
-        return this.lines[line].trimLeft().split("\t").join(" ");
-    }
-    private makeIndicator(line: number, c0: number, c1: number): string {
-        console.assert(c0 >= 0, "c0=%s must be non-negative", c0);
-        console.assert(c1 > c0, "c1=%s must be larger than c0=%s", c1, c0);
-        let indentLen = this.lines[line].length - this.lines[line].trimLeft().length;
-        return " ".repeat(c0 - indentLen) + "^".repeat(c1 - c0);
-    }
-    newErrPoint(msg: string, line: number, c: number): string {
-        let error = this.errorHeader(msg, line, c);
-        let len = Math.floor(Math.log10(line + 1)) + 1;
-        error += this.formatLine(len, line - 1, "");
-        error += this.formatLine(len, line, this.getFileLine(line));
-        error += this.formatLine(len, line + 1, this.makeIndicator(line, c, c + 1));
-        return error;
-    }
-    newErrToken(msg: string, token: Token): string {
-        return this.newErrPoint(msg, token.line, token.c);
-    }
-    newErrAfterLastToken(msg: string, curToken: Token): string {
-        let curLine = curToken.line;
-        let curLineStr = this.lines[curLine];
-        let cur = curToken.c;
-        do {
-            if (cur <= 0) {
-                curLine--;
-                curLineStr = this.lines[curLine];
-                cur = curLineStr.length;
-            }
-            cur--;
-        } while (Lexer.isWhitespace(curLineStr.charAt(cur)));
-
-        return this.newErrPoint(msg, curLine, cur + 1);
-    }
-}
 export default class Lexer {
-    readonly errHandler: ErrorHandler;
-    readonly prgmString: string;
+    private readonly err: ErrorHandler;
+    private readonly sourceCode: string;
     private curIndex = 0;
     private curLine = 1;
     private curC = 0;
-    constructor(prgmString: string) {
-        this.prgmString = prgmString;
-        this.errHandler = new ErrorHandler(this);
-    }
-    private err(msg: string, line: number, ch: number) {
-        throw this.errHandler.newErrPoint(msg, line, ch);
+    constructor(sourceCode: string, errHandler: ErrorHandler) {
+        this.sourceCode = sourceCode;
+        this.err = ErrorHandler.fromHandler("----Lexer----\n", errHandler);
     }
     lex(): Token[] {
         let tokens: Token[] = [];
@@ -104,7 +22,7 @@ export default class Lexer {
         return tokens;
     }
     private getChar(index: number): string {
-        return this.prgmString.charAt(index);
+        return this.sourceCode.charAt(index);
     }
     private getCurChar(): string {
         return this.getChar(this.curIndex);
@@ -127,18 +45,12 @@ export default class Lexer {
         }
 
         //Return end token if end of string input reached
-        if (this.curIndex >= this.prgmString.length) {
-            return this.grabToken("", TokenType.END_TKN);
+        if (this.curIndex >= this.sourceCode.length) {
+            return this.grabToken("' '", TokenType.END_TKN);
         }
 
         switch (this.getCurChar()) {
-            // Assignment
-            case "=":
-                if (this.getNextChar() === "=") {
-                    return this.grabToken("==", TokenType.COND_EQUALS_TKN);
-                } else {
-                    return this.grabToken("=", TokenType.ASSIGNMENT_TKN);
-                }
+            //Statements
             case ">":
                 if (this.getNextChar() === "=") {
                     return this.grabToken(">=", TokenType.COND_GREATER_THAN_EQUAL_TKN);
@@ -150,15 +62,29 @@ export default class Lexer {
                     return this.grabToken(">", TokenType.COND_GREATER_THAN_TKN);
                 }
             case "<":
-                if (this.getNextChar() === "=") {
-                    return this.grabToken("<=", TokenType.COND_LESS_THAN_EQUAL_TKN);
-                } else if (this.getNextChar() === "<") {
-                    return this.grabToken("<<", TokenType.BIN_SHIFT_LEFT_TKN);
-                } else {
-                    return this.grabToken("<", TokenType.COND_LESS_THAN_TKN);
+                switch (this.getNextChar()) {
+                    case "=":
+                        return this.grabToken("<=", TokenType.COND_LESS_THAN_EQUAL_TKN);
+                    case "<":
+                        return this.grabToken("<<", TokenType.BIN_SHIFT_LEFT_TKN);
+                    case "-":
+                        return this.grabToken("<-", TokenType.REVERSE_ARROW_TKN);
+                    default:
+                        return this.grabToken("<", TokenType.COND_LESS_THAN_TKN);
                 }
             case ":":
                 return this.grabToken(":", TokenType.COLON_TKN);
+
+            // Assignment
+            case "=":
+                switch (this.getNextChar()) {
+                    case "=":
+                        return this.grabToken("==", TokenType.COND_EQUALS_TKN);
+                    case ">":
+                        return this.grabToken("=>", TokenType.CONST_ASSIGNMENT_TKN);
+                    default:
+                        return this.grabToken("=", TokenType.ASSIGNMENT_TKN);
+                }
 
             // Blocks
             case "{":
@@ -221,7 +147,7 @@ export default class Lexer {
                     case "-":
                         return this.grabToken("--", TokenType.OP_SUBTR_SUBTR_TKN);
                     case ">":
-                        return this.grabToken("->", TokenType.MAPPING_TKN);
+                        return this.grabToken("->", TokenType.ARROW_TKN);
                     default:
                         return this.grabToken("-", TokenType.OP_SUBTR_TKN);
                 }
@@ -229,6 +155,8 @@ export default class Lexer {
                 switch (this.getNextChar()) {
                     case "=":
                         return this.grabToken("*=", TokenType.OP_MULT_EQUALS_TKN);
+                    case "/":
+                        this.err.atPoint_PANIC("Unclosed block comment", this.curLine, this.curC);
                     default:
                         return this.grabToken("*", TokenType.OP_MULT_TKN);
                 }
@@ -252,13 +180,19 @@ export default class Lexer {
 
             //Miscellaneous
             case "~":
-                return this.grabToken("~", TokenType.BIN_NOT_TKN);
+                if (this.getNextChar() == "=") {
+                    return this.grabToken("~=", TokenType.MUTABLE_ASSIGNMENT_TKN);
+                } else {
+                    return this.grabToken("~", TokenType.BIN_NOT_TKN);
+                }
             case ".":
                 if (this.getNextChar() === "." && this.getChar(this.curIndex + 2) === ".") {
-                    return this.grabToken("...", TokenType.ELLIPSES_TKN);
+                    return this.grabToken("...", TokenType.ELLIPSIS_TKN);
                 } else {
                     return this.grabToken(".", TokenType.DOT_TKN);
                 }
+            case "\\":
+                return this.grabToken("\\", TokenType.BACKSLASH_TKN);
             case ",":
                 return this.grabToken(",", TokenType.COMMA_TKN);
             case ";":
@@ -270,6 +204,8 @@ export default class Lexer {
                     return this.grabIdentifier();
                 } else if (Lexer.isNumber(this.getCurChar())) {
                     return this.grabNumericLiteral();
+                } else if (this.getCurChar() === "#") {
+                    return this.grabDirective();
                 } else {
                     let unknown = this.grabToken(this.getCurChar(), TokenType.UNKNOWN_TKN);
                     unknown.value = this.getCurChar();
@@ -301,8 +237,8 @@ export default class Lexer {
                         ch = this.getCurChar();
                         continue;
                     } else {
-                        this.err(
-                            'Number has too many decimal points"' + number / divideBy + '."',
+                        this.err.atPoint_PANIC(
+                            'Number has too many decimal points "' + number / divideBy + '."',
                             this.curLine,
                             this.curC
                         );
@@ -342,6 +278,23 @@ export default class Lexer {
         tkn.value = str;
         return tkn;
     }
+    private grabDirective(): Token {
+        console.assert(this.getCurChar() === "#", "Directives must start with #");
+        this.incrementCurIndex(1);
+        let str = "#";
+        let ch = this.getCurChar();
+        while (Lexer.isLetter(ch) || Lexer.isNumber(ch)) {
+            this.incrementCurIndex(1);
+            str = str + ch;
+            ch = this.getCurChar();
+        }
+        switch (str) {
+            case "#range":
+                return this.makeToken(str, TokenType.HASH_RANGE_TKN);
+            default:
+                return this.makeToken(str, TokenType.UNKNOWN_TKN);
+        }
+    }
     private grabIdentifier(): Token {
         let str = "";
         let ch = this.getCurChar();
@@ -352,53 +305,53 @@ export default class Lexer {
         }
         switch (str) {
             case "type":
-                return this.makeToken("type", TokenType.TYPE_TKN);
+                return this.makeToken(str, TokenType.TYPE_TKN);
             case "module":
-                return this.makeToken("module", TokenType.MODULE_TKN);
+                return this.makeToken(str, TokenType.MODULE_TKN);
             case "with":
-                return this.makeToken("with", TokenType.WITH_TKN);
+                return this.makeToken(str, TokenType.WITH_TKN);
             case "if":
-                return this.makeToken("if", TokenType.IF_TKN);
+                return this.makeToken(str, TokenType.IF_TKN);
             case "else":
-                return this.makeToken("else", TokenType.ELSE_TKN);
+                return this.makeToken(str, TokenType.ELSE_TKN);
             case "while":
-                return this.makeToken("while", TokenType.WHILE_TKN);
+                return this.makeToken(str, TokenType.WHILE_TKN);
             case "for":
-                return this.makeToken("for", TokenType.FOR_TKN);
+                return this.makeToken(str, TokenType.FOR_TKN);
             case "in":
-                return this.makeToken("in", TokenType.IN_TKN);
+                return this.makeToken(str, TokenType.IN_TKN);
             case "break":
-                return this.makeToken("break", TokenType.BREAK_TKN);
+                return this.makeToken(str, TokenType.BREAK_TKN);
             case "continue":
-                return this.makeToken("continue", TokenType.CONTINUE_TKN);
+                return this.makeToken(str, TokenType.CONTINUE_TKN);
 
             //Bitwise Operators
             case "or":
-                return this.makeToken("or", TokenType.BIN_OR_TKN);
+                return this.makeToken(str, TokenType.BIN_OR_TKN);
             case "and":
-                return this.makeToken("and", TokenType.BIN_AND_TKN);
+                return this.makeToken(str, TokenType.BIN_AND_TKN);
             case "xor":
-                return this.makeToken("xor", TokenType.BIN_XOR_TKN);
+                return this.makeToken(str, TokenType.BIN_XOR_TKN);
 
             //Conditionals
             case "true":
-                return this.makeToken("true", TokenType.COND_TRUE_TKN);
+                return this.makeToken(str, TokenType.COND_TRUE_TKN);
             case "false":
-                return this.makeToken("false", TokenType.COND_FALSE_TKN);
+                return this.makeToken(str, TokenType.COND_FALSE_TKN);
 
             //Types
             case "void":
-                return this.makeToken("void", TokenType.VOID_TKN);
+                return this.makeToken(str, TokenType.VOID_TYPE_TKN);
             case "num":
-                return this.makeToken("num", TokenType.NUM_TKN);
+                return this.makeToken(str, TokenType.NUM_TYPE_TKN);
             case "string":
-                return this.makeToken("string", TokenType.STRING_TKN);
+                return this.makeToken(str, TokenType.STRING_TYPE_TKN);
             case "bool":
-                return this.makeToken("bool", TokenType.BOOL_TKN);
+                return this.makeToken(str, TokenType.BOOL_TYPE_TKN);
 
-            // lambdas
+            // Functions
             case "return":
-                return this.makeToken("return", TokenType.RETURN_TKN);
+                return this.makeToken(str, TokenType.RETURN_TKN);
 
             default:
                 return this.makeToken(str, TokenType.IDENTIFIER_TKN);
@@ -406,14 +359,25 @@ export default class Lexer {
     }
     private consumeSingleLineComment() {
         this.incrementCurIndex(2);
-        while (this.curIndex < this.prgmString.length && this.getCurChar() !== "\n") {
+        while (this.curIndex < this.sourceCode.length && this.getCurChar() !== "\n") {
             this.incrementCurIndex(1);
         }
     }
     private consumeBlockComment() {
+        let beginLine = this.curLine;
+        let beginC = this.curC;
         this.incrementCurIndex(2);
-        while (this.curIndex < this.prgmString.length && !(this.getCurChar() === "*" && this.getNextChar() === "/")) {
+        while (this.curIndex < this.sourceCode.length && !(this.getCurChar() === "*" && this.getNextChar() === "/")) {
             this.incrementCurIndex(1);
+        }
+        if (this.curIndex >= this.sourceCode.length) {
+            this.err
+                .atPoint("Beginning of the block comment is as follows", beginLine, beginC)
+                .atPoint_PANIC(
+                    "Unterminated block comment at the end of the file. Expected */",
+                    this.curLine,
+                    this.curC
+                );
         }
         this.incrementCurIndex(2);
     }

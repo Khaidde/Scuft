@@ -253,4 +253,24 @@ generics = () {
 
 }
 
+for array {
+    doStuff(...);
+}
 
+for item in array {
+    doStuff(item);
+}
+
+for item, index in array {
+    if index < 3 {
+        doStuff(item);
+    }
+}
+
+for i in range(3, 5] {
+
+}
+
+for i in #range (3 + x - 2, testVar.y - 3 ^ 6] {
+
+}

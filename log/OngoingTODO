@@ -5,10 +5,18 @@ Check
     - (Built-In Math Constants)
     - (Format in Hexadecimal and Binary)
 - 12/23/20
-    - (All variables are constant by default)
+    - (All variables are immutable by default)
     - (Typeof)
     - (metaprogramming)
     - (Function overloading)
-    - Lambda parsing
 - 12/25/20
     - (Constant Variable Ordering)
+    - Make sure that the for loop error messages are working as expected
+    - Verify error messages again in while loops of parseType, parseTypeConstruction, parseFunction, parseCall
+- 12/28/20
+    - Discuss constant and mutable types: a: |num => 3, b: ~num ~= otherVal;
+    - Make rules/documentation
+- 12/29/20
+    - Create tools to nicely display scope tree
+- 12/30/20
+    - Recheck all the parser errors

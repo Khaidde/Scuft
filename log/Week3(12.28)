@@ -1,0 +1,231 @@
+12/28/20 (Monday)
+    Tasks
+    - Fix all the errors in parsing (the one's Calvin made after his glorious revision)
+    - Parse lambdas
+    - Parse for loop with range: for i in #range (-3, 40] {}
+    - Parse type construction with w/: Particle w/ { x = 3, y = 4 }
+    - Start typechecking
+    - Discuss constant and mutable types and MAKE RULES: a: |num => 3, b: ~num ~= otherVal;
+
+    Small Tasks
+    - Fixed the errors in the parser and did major revisions to parseExpression to make things cleaner.
+    - Implemented lambdas
+    - Dot operator and function calls now work as expected
+
+    Done
+    - Type construction is now: Particle <- {x = 3, y = 5};
+    - Types are now declarations: Particle = type {x: num; y: num;}
+    - Fixed lamdba notion, is now : \x,y => x + y
+    - Started work on typechecking
+        a = 3; //knows type of a is num
+        b: string = "test"; // b is string with matching declaration type
+        c: string = 4 // detects error case
+        // works for bools
+    - Store "NodeType" in all ASTNode
+
+12/29/20 (Tuesday)
+    Tasks
+    - Fix the multiple copies of parseDeclaration
+    - Change module definition to be a declaration
+    - Add with module stuff to type definitions and modules
+    - Make a new binary operator expression for dot operators: ASTDotOperator
+    - Make AST utilities like nodeEquals
+    - Create tools to nicely display scope tree
+    - Recheck all the error messages and try to think of a way to fix the multitude of error msg helper functions in the parser
+    - Move certain parser errors into the type checker: "Particle <- { "errorInTypeChecker".x <- 3, y <- 4}"
+        - The validity of declaration.lvalue expressions should be checked in the type checker, not the parser
+
+    Issues
+    - Consider how to deal with loose statements in modules:
+        testModule = module {
+            // According to how modules are defined, these statements may never be called
+            if true {} 
+            while 3 < 5 {}
+            for i in array {}
+            a.doStuff();
+        }
+    - Consider recursive type definitions:
+        Particle = type {
+            x = 2;
+            other = Particle <- {}; //Type construction will try to get default values => recursive type definition
+        }
+    - Circumventing the parenthesis flag for types
+        // This currently throws an error because parenthesis are not allowed around Astrology
+        a: (num, (Astrology).getType()) -> string; 
+
+    Ideas
+        Passing parameters by value vs reference
+            otherNumber: num;
+            p: Point
+            (\x,y => x)(p, otherNumber) = Point.{};
+
+            identity = (x: Point) -> Point {
+                return x;
+            }
+
+            identity(p).x = 3
+
+            doStuff(p);
+            doStuff = (p2: &Point) {
+                p2.x = 10;
+            }
+            p.x; //10
+
+    Small Tasks
+    - Implemented module definitions as declarations
+    - Type construction is now implemented as Particle.{x <- 3, y <- 4}
+    - Make ASTName.refName into a string instead of a token
+    - Made better functions for checking expressions against each other (checking types against each other)
+    - Cleaned up ordering and function names in AST
+    - Fix the multitude of error msg helper functions in the parser
+    - Merged ASTModule and ASTTypeDefinition into ASTExpression
+    - Created ASTSingleVarDeclaration for type definitions, type construction and function parameters
+
+    Done
+    - Type definition mostly typechecked
+    - Type construction typechecked EXCEPT for function components
+    - Figured out what getDeclaration does in typechecking
+    - Fixed getTypeOfExpression in typechecking
+
+12/30/20 (Wednesday)
+    Tasks
+    - Create tools to nicely display scope tree
+    - Organize AST to generalize to a certain extent (ASTSingleVarDeclaration vs ASTDeclaration)
+    - Typecheck binary operators
+    - Finish typecheck for type construction
+    - Fully convert modules and types into real expressions. Note that functions are harder to implement in this way
+    - Turn function types into expressions by using new notation: (Finally delete "ignoreParenthesis" directive)
+        a:  \(string, ~Particle, @num) -> string + 3;
+        a: @\(string,  Particle, @num) -> string
+
+        Polynomial = type {
+            fx: \(num) -> num;
+        }
+        Polynomial.{
+            fx <- (x: num) { return x + x; }
+        }
+        fx = \x -> x + x;
+    
+    Issues
+        Run time type construction 
+            // Consider the following (very dumb case)
+            Point = type {
+                x = 0;
+                y = 0;
+            }
+            Factory = type {
+                typeOfObject: type;
+            }
+            randomObj = Factory.{ typeOfObject <- Point }.typeOfObject.{ x <- 3, y <- 4 };
+            // The value of "typeOfObject" needs to be evaluated in order to type check the type construction { x <- 3...
+
+    Ideas
+        Null Value
+            List = type {
+                nextList: List; // check against null to see if finished 
+                value: num = null;
+            }
+
+            ListItem = type {
+                value: something
+                nextItem: ListItem;
+            }
+        Constant Variable
+            a: @num => 3; //a is a variable known at compile time
+            b => (first: num, second: num) -> num { //b is a pure function?
+                return first + second;
+            }
+        Other function notation
+            testFunction = (first: num, second: num) -> num { 
+                return first + second;
+            }
+        Polymorphism
+            +: \(t, t) -> t
+            operator + => (a0: num, a1: num) -> num { //Note that operator overloads are pure
+
+            }
+
+            multiply = (scalar: t, vec: u!) -> u {
+                
+            }
+
+            add = (a0: that!, a1: thathjhk()) -> that {
+
+            }
+
+    Small Tasks
+    - Fully convert modules and types into real expressions. Note that functions are harder to implement in this way
+    - Turned function types into expressions by using new notation: (Finally delete "ignoreParenthesis" directive)
+    - Generate preliminary scope tree in the parser before type checking. 
+        - There are still nuances regarding modules and complex declaration lvalues (thing.other = 3);
+
+12/31/20 (Thursday)
+    Tasks
+    - Fully generate the preliminary scope tree in the parser before type checking (include complex lvalues)
+    - Implement single line if, while, for: if 3 < 4 doStuff(); for i in array randomVar += 4;
+    - Implement nested modules: thing = module { otherModule = module{} }
+    - Do a full scan of the lexer to check for unclosed block comments. Catch errors faster and smarter
+    - Allow parenthesis around references: (Astrology).stars.(stuff.function()).x
+        - The advantages of this is more clear when considering casting: (<thing>Astrology).stars.(<otherThing>stuff.function())
+    - Think of a way to change "typeRef" in ASTTypeConstruction into an ASTReference
+
+    Ideas   
+        Simplifying declaration lvalues: (FCK, I JUST THOUGHT OF A COUNTER EXAMPLE TO EVERYTHING I WROTE BELOW)
+            // Our language doesn't have a notion of static so all instances of types
+            // can't access outside of their scope.
+
+            x = 4;
+            Coord = type {
+                // Even though shadowing is not allowed, x=0 here is allowed because everything within 
+                // the type block is innward scoping. Note that a point has no way of accessing information
+                // outside of the type block.
+                x = 0; 
+                y = 0;
+            }
+
+            // To create a notion of "static" one could encapsulate the type in a module:
+            PointM = module {
+                idCounter = 0;
+                Point = type {
+                    id: num;
+                    x = 0;
+                    y = 0;
+                }
+                // Note that this function is impure because of "idCounter++"
+                newPoint = (xn: num, yn: num) -> Point {
+                    point = Point.{id <- idCounter, x <- xn, y <- yn};
+                    idCounter++; 
+                    return point;
+                }
+            }
+            main = () {
+                with PointM;
+                p0: Point = newPoint(1, 2); // New Point with values, id = 0, x = 1, y = 2
+                p1: Point = newPoint(3, 4); // New Point with values, id = 1, x = 3, y = 4
+
+                for i in #range [2, 100) {
+                    newPoint(-1, -1);
+                }
+                
+                p100: Point = newPoint(-99, -99); // New Point with values, id = 100, x = -99, y = -99
+
+                morePoints();
+            }
+            morePoints = () {
+                // In essence, this means that type construction has no impure effects so
+                // the following line should have no side effects
+                PointM.Point.{ id <- 22, x <- 2, y <- 3} = null;
+
+                // A similar thing can be said for operator overloading since operator overloading is defined to be pure
+                operator + => (p0: Point, p1: Point) -> Point {
+                    return Point.{ x <- p0.x + p1.x, y <- p0.y + p1.y };
+                }
+                ( Point.{ x <- 1, y <- 2 } + Point.{ x <- 5, y <- 4 }) = null; //This line has no effect whatsoever
+
+                // Note however that calls can produce sideEffects so the following code is meaningful
+                // though arguable quite stupid.
+                newPoint(3, 2).x = 6; // the idCounter in PointM was incremented
+
+                // Thus, declaration lvalues and other types of "references" can be simplified
+                // down to only requiring ASTName, ASTDotOperator and ASTCall (thing.other.function().x)
+            }

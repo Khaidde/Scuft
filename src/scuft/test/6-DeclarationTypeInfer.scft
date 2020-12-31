@@ -1,0 +1,14 @@
+a = "test";
+b = true;
+c: bool; 
+
+Particle = type {
+    a = 5;
+    point: Particle.cool();
+    funcTest: \(num, num) -> num;
+}
+
+particleA = Particle.{
+    a <- 3,
+    point <- Particle.{ a <- 1 }
+};

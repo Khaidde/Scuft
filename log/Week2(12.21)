@@ -35,10 +35,10 @@
     - If/elseif/else conditionals
     - Dot expressions for types
     - Lambda parsing
-    
+
     Ideas
-        All variables are constant by default
-            a: num = 3; //constant
+        All variables are immutable by default
+            a: num = 3; //immutable
             a: ~num ~= 4 //mutable
         Typeof
             type Particle {
@@ -136,6 +136,7 @@
     Tasks
     - Make sure that the for loop error messages are working as expected
     - Make sure dot operator error messages are working as expected
+    - Fix invalid use of dot operator in parameter declaration: add = (a:num, b.pos.x: num) {}
     - Verify error messages again in while loops of parseType, parseTypeConstruction, parseFunction, parseCall
     - Finally start on type checking/semantic analysis
 
@@ -143,17 +144,31 @@
         Constant Variable Ordering
 
             //This should definitely work
-            doOtherStuff = () {
-                value = add(3, 2);
+            immutA = 3 + (\x,y x * y)(5, 10);
+            immutB = 4 + (7);
+
+            immutableVar = constA;
+
+            add = subtract; //queue (subtract -> table)
+            subtract = add; //throw error
+            doOtherStuff = () -> num {
+                test = value;
+
+                value => add(randConst, 2); //immutable, constant. determine if add is pure, determine if randConst is constant
+
+                randConst => 3; //constant
+
+                return constA;
             }
-            add = (a: num, b: num) -> num {
+            constB = doOtherStuff();
+            add: |(num, num) -> num => (a: num, b: num) -> num { //pure
                 return a + b;
             }
 
             //This might also work?
             doStuff = () {
                 // print(mutVar) This line would throw an error because mutable is not known at compile time
-                print(constA); This line w
+                print(constA); //This line works
 
                 mutVar ~= 0;
                 mutVar ~= mutVar + 1; //Note that mutVar variables must be declared in order 
@@ -168,3 +183,62 @@
                     return a + b;
                 }
             }
+
+    Small Tasks
+    - Created getAssertedToken() function to generalize asserting a token and calling nextToken()
+    - Fixed errors in the error handling of parseExpression along with some niche but important test cases
+        - Made parseExpression function error messages more debuggable by using two part errors
+    - Output error when user uses the dot operator in the parameter declaration of a function: add = (a:num, b.pos.x: num) {}
+    - Output error when block comment does not have a matching */ at the end of the file. Formatted lexer errors to fit format of parser errors.
+    - Fixed issues with type construction in the conditional expressions of if statements and while loops
+        - Type construction must be contained within parenthesis when used in if statements or whiles loops
+        - if testPoint == (Point{x = 3, y = 2}) { doSomething(); }
+
+12/27/20 (Sunday)
+    Tasks
+    - Make sure that the for loop error messages are working as expected
+    - Make sure dot operator error messages are working as expected
+    - Verify error messages again in while loops of parseType, parseTypeConstruction, parseFunction, parseCall
+    - Get dot operator working for expressions: (funcCall().value + 3) - Point{ x = 3, y = 2 }.name.stringVal ^ 2;
+    - Finally start on type checking/semantic analysis
+
+    Ideas
+        Adjusted type construction syntax 
+            with Astrology;
+            p = Particle {x = 3, y = 4}
+            if p == Particle w/ {x = 3, y= 4} {
+            
+            }
+        Constant declarations
+            test => 4;
+            
+            otherVal1 ~= sideEffect();
+
+            MAX_PLAYERS_IN_LOBBY => 50;
+            constVal => 6
+            otherVal2 => 3 + add(3, 2) + constVal; 
+            add => (a: num, b: num) -> num {
+                return a + b;
+            }
+
+            test2 ~= 3;
+            if 
+                test2 ++;
+            else
+                test2 = 0; 
+            otherStuff = test2;
+
+            sideEffect = (num) -> num { //Not a pure function so sideEffect can't be defined as const (=>)
+                otherVal2 = 2;
+                return otherVal1 +;
+            }
+
+    Small Tasks
+    - Small modifications to error for type construction in conditional expressions of if statements and while loops
+    - For loops can now store expressions for their upper and lower bounds
+
+    Issues
+    - With new changes to how expressions work the following issues arise:
+        - the iterable name of for loops is ambiguous. Consider these cases
+            for item, index in (variable.otherVariable.x, 3 - 8] {}
+            for item, index in (variable.otherVariable.x) {}
