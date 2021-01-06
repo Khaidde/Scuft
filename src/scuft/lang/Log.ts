@@ -1,4 +1,4 @@
-const DEFAULT_FMT = "color: #777;";
+const DEFAULT_FMT = "color: #7D7C84;";
 
 export function applyFmt(str: string, fmt: string[], format = DEFAULT_FMT): string {
     fmt.push(format);

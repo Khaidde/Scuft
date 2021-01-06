@@ -1,0 +1,72 @@
+// SUCCEEEDDDD
+
+ListItem => type {
+    entry: num;
+    nextItem: ListItem;
+}
+
+operator + => (a: ListItem, b: ListItem) -> ListItem {
+    resList = ListItem.{};
+    resList.entry = a.entry + b.entry;
+    if a == null || b == null {
+        resList.nextItem = null;
+    } else {
+        resList.nextItem = a.nextVec + b.nextVec;
+    }
+    return resList;
+}
+
+Tree => type [
+    branch: <Tree..?>;
+    entry: num;
+]
+
+vector => module {
+    Vec3 => type {
+        x: num;
+        y: num;
+        z: num;
+    }
+
+    operator dot => (a: Vec3, b: Vec3) -> Vec3 {
+        newVec3 = Vec3.{};
+        newVec3.x = a.x * b.x;
+        newVec3.y = a.y * b.y;
+        newVec3.z = a.z * b.z;
+    }
+
+    scale => num;
+    operator * => (scalar: scale, vec: Vec3) -> Vec3 {
+        return Vec.{ 
+            x <- scalar * vec.x,
+            y <- scalar * vec.y,
+            z <- scalar * vec.z
+        };
+    }
+}
+
+length = (a: <num..?>) -> num {
+    count ~= 0;
+    for i in a {
+        count ~= count + 1;
+    }
+    return count;
+}
+
+push = (a: <num..?>, b: num) -> <num..?> {
+    newVec = <num..(length(a) + 1)>
+    for i in #range [0, length(a)) newVec<i> = a<i>
+    newVec<length(a)> = b;
+}
+
+main = () {
+    size ~= 10;
+    
+    if (rand() < 0.5) {
+        size = 13;
+    }
+
+    vec: <num..size>;
+
+    tuple: <<num, num, <string, num>>...10>
+}

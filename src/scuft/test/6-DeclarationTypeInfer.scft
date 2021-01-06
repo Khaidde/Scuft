@@ -1,14 +1,51 @@
-a = "test";
-b = true;
-c: bool; 
+/*
+rand => num;
+rand2 => rand;
+per: rand2 = 5;
+*/
 
-Particle = type {
-    a = 5;
-    point: Particle.cool();
-    funcTest: \(num, num) -> num;
+// constPart: const mut mut string => b1;
+
+a1 => "test";
+b1: const string => a1;
+c1: bool; 
+
+a => 3;
+b ~= a; 
+
+Sky => type {
+    //star: Star;
+    moreSky: Sky;
+    starCount: mut bool ~= true;  
+
+    thing = 3;
+    newStar = () {
+        vari = thing;
+        starCount ~= starCount || true;
+    }
 }
 
+Star => type {
+    moreTwinkle = () {
+        twinkle ~= false;
+    }
+    twinkle ~= true;
+    index: num;
+    otherStar: Star;
+}
+
+
+/*
+mutPart: mut mut Particle;
+
 particleA = Particle.{
-    a <- 3,
-    point <- Particle.{ a <- 1 }
+    a <- 20,
+    otherParticle <- Particle.{ a <- 1 }
 };
+
+Particle => type {
+    a = 30;
+    otherParticle: Particle;
+    funcTest: \(num, num) -> num;
+}
+*/

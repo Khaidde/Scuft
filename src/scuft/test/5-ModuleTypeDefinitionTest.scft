@@ -1,9 +1,9 @@
-Point.test = type {
+Point => type {
     x: num;
     y: num;
     z: num;
 }
-Particle = type {
+Particle => type {
     point: Point;
     existence: bool = true;
     glowing: bool;
@@ -11,12 +11,22 @@ Particle = type {
     message = "facets";
 }
 
-test = module {
+test => module {
     add = (a: num, b: num) -> num {
         return a + b;
     }
     booolerrr: \(bool, bool, num, num) -> bool = (a: bool, b: bool, x: Astrology.Star, y: num) -> bool {
         return x > y $$ a && b || (a || b);
+
+        if (3 < 4) doSomething(); else doOtherThing();
+        while true doSomething();
+        for i in x.array doSomething();
+        lambda = \a, b => a * b;
+
+        func = () doThing(-1, 2);
+        funcWithParam = (a: num, b: num) doThing(a, b);
+
+        funcWithParamAndReturn = (a: num, b: num) -> num return doThing(a, b);
 
         for i in #range [0, 10) {
             //0...9
@@ -40,7 +50,7 @@ test = module {
         for list {
 
         }
-        for item in Astrology.starArray {
+        for others, other in Astrology.starArray {
 
         }
         for item, index in array {
@@ -48,7 +58,7 @@ test = module {
         }
         return d;
     }
-    Vector4 = type {
+    Vector4 => type {
         w: num;
         x: num;
         y: num;
@@ -59,14 +69,13 @@ test = module {
     }
 }
 
-
-Astrology = module {
+Astrology => module {
     stars = 5000;
     ageOfUniverse = 6000;
     findDate = (a: num) -> num {
         return ageOfUniverse;
     }
-    Constellation = type {
+    Constellation => type {
         name: string;
         starsCount: num;
         isItGood: bool;
@@ -91,7 +100,7 @@ Astrology = module {
     }
 }
 
-main = () -> number {
+main = () -> num {
     with Astrology;
     with test;
     a: Point;
@@ -100,10 +109,27 @@ main = () -> number {
     l: Vector4;
     l': Vector4;
     dl = combine(l, -l');
-    return;
+    
+    thing.thing = \(num, num) -> thing().cool;
+
+    for test in #range [-2 + x, 345.6 + "test" * -5 - 6 - sin(cos(x), y) ^ 3) {
+
+    }
+    for item in #range [3 + 35, strLength) {
+
+    }
+    for item in array {
+        item = item + 1;
+    }
+    tester = 3 + test.(3 + 2).nice() + (\x, y => x + y + 3) (4, 5); 
+    test3 = 4 * 8 . x; 
+    test53 = 3 + s.4 (3);
+
+    testtest = thing.other.call() << 3;
+    testOther = \x,y => x ^ y;
 }
 
-test2 = module {
+test2 => module {
     with Astrology;
     x = 3 + 5 - 6;
     func = () {
@@ -118,11 +144,6 @@ point = Point.{
     y <- 2
 };
 
-Point = type {
-    with test;
-    x = 0;
-    y = 0;
-}
 testParticle = Particle.{
     point <- Point.{
         x <- 3,
@@ -130,19 +151,9 @@ testParticle = Particle.{
     }
 };
 
-thing.thing = \(num, num) -> thing().cool;
-
-for test in #range [-2 + x, 345.6 + "test" * -5 - 6 - sin(cos(x), y) ^ 3) {
-
-}
-for item in #range [3 + 35, strLength) {
-
-}
-for item in array {
-    item = item + 1;
-}
-tester = 3 + test.(3 + 2).nice() + (\x, y => x + y + 3) (4, 5); 
-test3 = 4 * 8 . x; 
-test53 = 3 + s.4 (3);
-
-testOther = \x,y => x ^ y;
+testMod => module {
+    funct = () {
+        doThing()
+        if true {
+            continue
+        }

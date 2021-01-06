@@ -1,105 +1,146 @@
 import * as AST from "./Ast";
 import { applyFmt, merge, space, tab, bar } from "./Log";
+import { Token, TokenType } from "./Token";
 
-export class Scope {
+export default class Scope {
+    static scopeCounter = 0;
     static newGlobalScope(): Scope {
-        return new Scope();
+        let globalScope = new Scope();
+        globalScope.operatorOverloads = new Map();
+        return globalScope;
     }
     static newScopeFrom(parentScope: Scope): Scope {
         let scope = new Scope();
         scope.parent = parentScope;
-        if (!parentScope.children) parentScope.children = [];
-        parentScope.children.push(scope);
+        if (!parentScope.debugChildren) parentScope.debugChildren = [];
+        parentScope.debugChildren.push(scope);
         return scope;
     }
-    static newTypeDefScopeFrom(parentScope: Scope): Scope {
+    static newModuleScopeFrom(parentScope: Scope): Scope {
         let scope = this.newScopeFrom(parentScope);
-        scope.inwardScoping = true;
+        scope.unOrdered = true;
         return scope;
     }
-    table: Map<string, AST.ASTDeclaration> = new Map();
-    withModules!: Scope[]; // Store the scope of all "with" modules
+    static newTypeDefScopeFrom(parentScope: Scope, typDefDecl: AST.ASTDeclaration): Scope {
+        let scope = new Scope();
+        if (!parentScope.debugChildren) parentScope.debugChildren = [];
+        parentScope.debugChildren.push(scope);
+        scope.unOrdered = true;
+        scope.addDeclaration(typDefDecl);
+        return scope;
+    }
+    private operatorOverloads!: Map<TokenType, AST.ASTFunction[]>; // Global scope has a list of overloads
+    addOperatorOverload(operator: TokenType, overload: AST.ASTFunction) {
+        let existingOverloads = this.operatorOverloads.get(operator);
+        if (!existingOverloads) {
+            existingOverloads = [];
+            this.operatorOverloads.set(operator, existingOverloads);
+        }
+        existingOverloads.push(overload);
+    }
+    getOperatorOverload(operator: TokenType): AST.ASTFunction[] | undefined {
+        return this.operatorOverloads.get(operator);
+    }
+    table: Map<string, AST.ASTDeclaration[]> = new Map();
+    withModules!: AST.ASTDeclaration[]; // Store the scope of all "with" modules
     parent!: Scope;
-    children!: Scope[];
-    inwardScoping: boolean = false;
+    unOrdered: boolean = false; // True for module and type definition scopes
+    debugChildren!: Scope[]; // Purely for debuging, scope doesn't need to know its children
     private constructor() {}
-    // Attempts to add declaration to the scope or spits out an already existing declaration
-    attemptAdd(identifierName: string, declaration: AST.ASTDeclaration): AST.ASTDeclaration {
-        let otherDec = this.getDeclarationFromName(identifierName);
-        if (otherDec) return otherDec;
-        this.table.set(identifierName, declaration);
-        return declaration;
-    }
-    with(moduleName: string) {
-        // Do stuff to find the module
-    }
-    private getDeclarationFromName(identifierName: string): AST.ASTDeclaration | undefined {
-        if (this.table.has(identifierName)) return this.table.get(identifierName)!;
-        if (!this.parent || this.inwardScoping) {
-            return undefined;
+    searchVariableDeclaration(name: AST.ASTName, excludeDecl?: AST.ASTDeclaration): AST.ASTDeclaration | undefined {
+        if (this.table.has(name.refName)) {
+            let decl = this.table.get(name.refName)!;
+            if (!excludeDecl || !excludeDecl.locToken.equals(decl[0].locToken)) {
+                return decl[0];
+            }
+        }
+        if (!this.parent) {
+            return undefined; // Couldn't find the declaration
         } else {
-            return this.parent.getDeclarationFromName(identifierName);
+            return this.parent.searchVariableDeclaration(name, excludeDecl);
         }
     }
-    // Scans relevant scopes for a declaration related to the reference (test.other().x)
-    getDeclarationFromRef(astRef: AST.ASTReference): AST.ASTDeclaration | undefined {
-        switch (astRef.nodeName) {
-            case AST.NodeType.NAME:
-                let astName = <AST.ASTName>astRef;
-                return this.getDeclarationFromName(astName.refName);
-            case AST.NodeType.DOT_OP:
-                return undefined;
-            case AST.NodeType.CALL:
-                return undefined;
+    //Adds declaration to scope without checking for prior existence
+    addDeclaration(decl: AST.ASTDeclaration) {
+        let refName = (<AST.ASTName>decl.lvalue).refName;
+        let existingDecl = this.table.get(refName);
+        if (existingDecl) {
+            existingDecl.push(decl);
+        } else {
+            this.table.set(refName, [decl]);
         }
     }
-}
+    removeDeclaration(decl: AST.ASTDeclaration) {
+        let refName = (<AST.ASTName>decl.lvalue).refName;
+        this.table.delete(refName);
+    }
+    getVariable(name: AST.ASTName): AST.ASTDeclaration | undefined {
+        let decl = this.table.get(name.refName);
+        if (!decl) return undefined;
+        if (decl.length > 1) console.warn("Variable with name " + name.refName + " is a function, not a variable");
+        return decl[0];
+    }
+    printScope() {
+        let fmt: string[] = [];
+        let lines: string[] = [];
+        merge(lines, this.recurseScope(fmt));
 
-function recurseScope(scope: Scope, fmt: string[]): string[] {
-    let lines: string[] = [applyFmt("Scope", fmt, AST.ASTFmt.NODE_FMT)];
-    lines.push("   Table:");
-    let maxKeyLength = 0;
-    let maxTypeLength = 0;
-    for (const [key, value] of scope.table.entries()) {
-        if (key.length > maxKeyLength) maxKeyLength = key.length;
-        if (value.type) {
-            let typeName = AST.exprToStr(value.type);
-            if (typeName.length > maxTypeLength) maxTypeLength = typeName.length;
+        let str: string[] = [lines.join("\n")];
+        for (let i = 0; i < fmt.length; i++) {
+            str.push(fmt[i]);
         }
+        console.log.apply(lines, str);
     }
-    for (const [key, value] of scope.table.entries()) {
-        let line =
-            "      | " + applyFmt(key, fmt, AST.ASTFmt.IDENTIFIER_FMT) + " ".repeat(maxKeyLength - key.length) + " : ";
-        let typeName = "";
-        if (value.type) {
-            typeName = AST.exprToStr(value.type);
-            line += applyFmt(typeName, fmt, AST.ASTFmt.TYPE_FMT);
+    recurseScope(fmt: string[]): string[] {
+        let lines: string[] = [applyFmt("Scope", fmt)];
+        if (this.operatorOverloads) {
+            merge(lines, ["   OperatorOverloads:"]);
         }
-        if (value.rvalue) {
-            line +=
-                " ".repeat(maxTypeLength - typeName.length) +
-                " = " +
-                applyFmt(AST.exprToStr(value.rvalue), fmt, AST.ASTFmt.EXPRESSION_FMT);
+        lines.push("   Table:");
+        let maxKeyLength = 0;
+        let maxTypeLength = 0;
+        for (const [key, value] of this.table.entries()) {
+            if (key.length > maxKeyLength) maxKeyLength = key.length;
+            for (let i = 0; i < value.length; i++) {
+                if (value[i].resolvedType) {
+                    let typeName = AST.exprToStr(value[i].resolvedType);
+                    if (typeName.length > maxTypeLength) maxTypeLength = typeName.length;
+                }
+            }
         }
-        lines.push(line);
-    }
-    if (scope.children) {
-        for (let i = 0; i < scope.children.length; i++) {
+        for (const [key, value] of this.table.entries()) {
+            for (let i = 0; i < value.length; i++) {
+                let line = "    |  ";
+                if (i === 0) {
+                    line += applyFmt(key, fmt, AST.ASTFmt.IDENTIFIER_FMT) + " ".repeat(maxKeyLength - key.length);
+                } else {
+                    line += " ".repeat(maxKeyLength);
+                }
+                let typeName = "";
+                if (value[i].resolvedType) {
+                    typeName = AST.exprToStr(value[i].resolvedType);
+                    line += " : " + applyFmt(typeName, fmt, AST.ASTFmt.TYPE_FMT);
+                } else {
+                    line += "   ";
+                }
+                if (value[i].rvalue) {
+                    let assignment = "  =  ";
+                    if (value[i].accessAssignment === TokenType.CONST_ASSIGNMENT_TKN) assignment = "  => ";
+                    if (value[i].accessAssignment === TokenType.MUTABLE_ASSIGNMENT_TKN) assignment = " ~=  ";
+                    line +=
+                        " ".repeat(maxTypeLength - typeName.length) +
+                        assignment +
+                        applyFmt(AST.exprToStr(value[i].rvalue), fmt, AST.ASTFmt.EXPRESSION_FMT);
+                }
+                lines.push(line);
+            }
+        }
+        if (this.debugChildren) {
             lines.push("   Children:");
-            merge(lines, space(3, recurseScope(scope.children[i], fmt)));
+            for (let i = 0; i < this.debugChildren.length; i++) {
+                merge(lines, space(3, bar(this.debugChildren[i].recurseScope(fmt))));
+            }
         }
+        return lines;
     }
-    return space(3, lines);
-}
-
-export function printScope(scope: Scope) {
-    let fmt: string[] = [];
-    let lines: string[] = [];
-    merge(lines, recurseScope(scope, fmt));
-
-    let str: string[] = [lines.join("\n")];
-    for (let i = 0; i < fmt.length; i++) {
-        str.push(fmt[i]);
-    }
-    console.log.apply(lines, str);
 }

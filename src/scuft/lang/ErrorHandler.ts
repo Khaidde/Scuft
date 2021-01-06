@@ -1,5 +1,6 @@
 import { Token } from "./Token";
 import Lexer from "./Lexer";
+import { ASTNode } from "./Ast";
 
 export class ErrorHandler {
     static fromHandler(header: string, errorHandler: ErrorHandler): ErrorHandler {
@@ -79,6 +80,10 @@ export class ErrorHandler {
         this.errorQueue.push(msg);
         return this;
     }
+    addNote_PANIC(msg: string): never {
+        this.errorQueue.push("Note: " + msg);
+        this.panic();
+    }
     atPoint(msg: string, line: number, c: number): ErrorHandler {
         let error = this.errorHeader(msg, line, c);
         let len = Math.floor(Math.log10(line + 1)) + 1;
@@ -96,7 +101,27 @@ export class ErrorHandler {
         return this.atPoint(msg, token.line, token.c);
     }
     atToken_PANIC(msg: string, token: Token): never {
-        this.atPoint(msg, token.line, token.c);
+        this.atPoint_PANIC(msg, token.line, token.c);
+    }
+    atNode(msg: string, node: ASTNode): ErrorHandler {
+        return this.atToken(msg, node.locToken);
+    }
+    atNode_PANIC(msg: string, node: ASTNode): never {
+        this.atToken_PANIC(msg, node.locToken);
+    }
+    atWholeToken(msg: string, token: Token): ErrorHandler {
+        let line = token.line;
+        let c = token.c;
+        let error = this.errorHeader(msg, line, c);
+        let len = Math.floor(Math.log10(line + 1)) + 1;
+        error += this.formatLine(len, line - 1, "");
+        error += this.formatLine(len, line, this.getLineFromSource(line));
+        error += this.formatLine(len, line + 1, this.makeIndicator(line, c, c + Math.max(1, token.stringValue.length)));
+        this.errorQueue.push(error);
+        return this;
+    }
+    atWholeToken_PANIC(msg: string, token: Token): never {
+        this.atWholeToken(msg, token);
         this.panic();
     }
     atAfterLastToken(msg: string, curToken: Token): ErrorHandler {

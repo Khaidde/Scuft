@@ -1,9 +1,9 @@
 import { ErrorHandler } from "./ErrorHandler";
-import { Token, TokenType } from "./Token";
+import { Token, TokenType, tokenToStr } from "./Token";
 import * as AST from "./Ast";
 
 import Lexer from "./Lexer";
-import { Scope } from "./Scope";
+import Scope from "./Scope";
 
 export default class Parser {
     private readonly lexer: Lexer;
@@ -15,24 +15,32 @@ export default class Parser {
 
         this.initPrecedenceMap();
     }
-    private assertToken(type: TokenType, expectedTkn: string, msg?: string) {
-        let tkn = this.peekToken();
-        if (tkn.type !== type) {
-            let res = "Expected ";
-            if (expectedTkn) {
-                res += expectedTkn;
-            } else {
-                res += TokenType[type];
-            }
-            if (tkn.type === TokenType.IDENTIFIER_TKN) {
-                res += " but got '" + tkn.stringValue + "' instead";
-            } else {
-                res += " but got " + tkn.stringValue + " instead";
-            }
-            if (msg) {
-                res += ": " + msg;
-            }
-            this.err.atAfterLastToken_PANIC(res, tkn);
+    private throwAssertError(actualTkn: Token, expectedTkn: string, msg?: string): never {
+        if (msg) {
+            this.err.atAfterLastToken(
+                "The parser expected " + expectedTkn + " but found a different token. " + msg,
+                actualTkn
+            );
+        } else {
+            this.err.atAfterLastToken("The parser expected " + expectedTkn + " but found a different token", actualTkn);
+        }
+        let actualTknStr = actualTkn.stringValue;
+        if (actualTkn.type === TokenType.IDENTIFIER_TKN) {
+            actualTknStr = "'" + actualTkn.stringValue + "'";
+        }
+        this.err.atWholeToken_PANIC(actualTknStr + " is not permitted here", actualTkn);
+    }
+    private assertIdentifier(expectedTkn: string, msg?: string) {
+        let actualTkn = this.peekToken();
+        if (actualTkn.type !== TokenType.IDENTIFIER_TKN) {
+            this.throwAssertError(actualTkn, expectedTkn, msg);
+        }
+    }
+    private assertToken(type: TokenType, msg?: string) {
+        let actualTkn = this.peekToken();
+        let expectedTkn = tokenToStr(type);
+        if (actualTkn.type !== type) {
+            this.throwAssertError(actualTkn, expectedTkn, msg);
         }
     }
     private tokenQueue: Token[] = [];
@@ -59,56 +67,66 @@ export default class Parser {
     parseProgram(): AST.ASTProgram {
         this.globalScope = Scope.newGlobalScope();
         let program = new AST.ASTProgram(this.peekToken());
-        program.statements = [];
+        program.operatorDefinitions = [];
+        program.withModules = [];
+        program.declarations = [];
         while (!this.checkToken(TokenType.END_TKN)) {
-            switch (this.peekToken().type) {
-                case TokenType.MODULE_TKN:
+            if (this.checkToken(TokenType.WITH_TKN)) {
+                program.withModules.push(this.parseWith());
+            } else if (this.checkToken(TokenType.OPERATOR_TKN)) {
+                program.operatorDefinitions.push(this.parseOperatorDefinition());
+            } else {
+                if (!this.checkToken(TokenType.IDENTIFIER_TKN)) {
                     this.err.atToken_PANIC(
-                        "Must declare a module in the format [moduleName] = module {...}",
+                        "Statements are not allowed to exist freely in global scope",
                         this.peekToken()
                     );
-                case TokenType.TYPE_TKN:
-                    this.err.atToken_PANIC(
-                        "Must declare a type definition in the format [typeName] = type {...}",
-                        this.peekToken()
-                    );
-                case TokenType.WITH_TKN:
-                    this.err.atToken_PANIC("Can't use 'with' statement in global scope", this.peekToken());
-                default:
-                    program.statements.push(this.parseStatement(this.globalScope));
+                }
+                let declaration = this.parseDeclaration(this.globalScope);
+                program.declarations.push(declaration);
             }
         }
         return program;
     }
     private parseBlock(blockScope: Scope): AST.ASTBlock {
-        this.assertToken(TokenType.LEFT_CURLY_TKN, "{", "Block must start wth {");
-        let block = new AST.ASTBlock(this.nextToken());
+        let block = new AST.ASTBlock(this.peekToken());
+        if (!this.checkToken(TokenType.LEFT_CURLY_TKN)) {
+            let singleLineBlock = new AST.ASTBlock(this.peekToken());
+            singleLineBlock.statements = [];
+            singleLineBlock.statements.push(this.parseStatement(blockScope));
+            return singleLineBlock;
+        }
+        this.nextToken(); // Consume {
+        block.scope = blockScope;
         block.withModules = [];
         block.statements = [];
         while (!this.checkToken(TokenType.RIGHT_CURLY_TKN) && !this.checkToken(TokenType.END_TKN)) {
-            switch (this.peekToken().type) {
-                case TokenType.MODULE_TKN:
-                    this.err.atToken_PANIC(
-                        "Must declare a module in the format [moduleName] = module {...}",
-                        this.peekToken()
-                    );
-                case TokenType.TYPE_TKN:
-                    this.err.atToken_PANIC(
-                        "Must declare a type definition in the format [typeName] = type {...}",
-                        this.peekToken()
-                    );
-                case TokenType.WITH_TKN:
-                    block.withModules.push(this.parseWith(blockScope));
-                    break;
-                default:
-                    block.statements.push(this.parseStatement(blockScope));
-                    break;
+            if (this.checkToken(TokenType.WITH_TKN)) {
+                block.withModules.push(this.parseWith());
+            } else {
+                let statement = this.parseStatement(blockScope);
+                if (statement.nodeName === AST.NodeType.DECLARATION) {
+                    let decl = <AST.ASTDeclaration>statement;
+                    if (decl.rvalue) {
+                        switch (decl.rvalue.nodeName) {
+                            case AST.NodeType.MODULE:
+                                this.err
+                                    .atNode("Error in block", block)
+                                    .atNode_PANIC("Module declaration is not allowed here", decl);
+                            case AST.NodeType.TYPE_DEF:
+                                this.err
+                                    .atNode("Error in block", block)
+                                    .atNode_PANIC("Type definition is not allowed here", decl);
+                        }
+                    }
+                }
+                block.statements.push(statement);
             }
         }
         if (this.checkToken(TokenType.END_TKN)) {
             this.err
-                .atToken("Error in block", block.locToken)
-                .atAfterLastToken_PANIC("Unterminated code at end of file. Expected closing }", this.peekToken());
+                .atNode("Error in block", block)
+                .atAfterLastToken_PANIC("Unterminated block at end of file. Expected closing }", this.peekToken());
         } else {
             this.nextToken();
         }
@@ -124,280 +142,91 @@ export default class Parser {
                 return this.parseFor(scope);
             case TokenType.BREAK_TKN:
                 let breakStatement = new AST.ASTBreak(this.nextToken());
-                this.assertToken(
-                    TokenType.SEMI_COLON_TKN,
-                    ";",
-                    "Semi-colons are required at the end of break statements"
-                );
-                this.nextToken();
+                this.assertToken(TokenType.SEMI_COLON_TKN, "Semi-colons are required at the end of break statements");
+                this.nextToken(); // Consume semi-colon;
                 return breakStatement;
             case TokenType.CONTINUE_TKN:
                 let continueStatement = new AST.ASTContinue(this.nextToken());
                 this.assertToken(
                     TokenType.SEMI_COLON_TKN,
-                    ";",
                     "Semi-colons are required at the end of continue statements"
                 );
-                this.nextToken();
+                this.nextToken(); // Consume semi-colon;
                 return continueStatement;
             case TokenType.RETURN_TKN:
                 let returnStatement = new AST.ASTReturn(this.nextToken());
                 if (!this.checkToken(TokenType.SEMI_COLON_TKN)) {
                     returnStatement.returnValue = this.parseExpression();
                 }
-                this.assertToken(
-                    TokenType.SEMI_COLON_TKN,
-                    ";",
-                    "Semi-colons are required at the end of return statements"
-                );
-                this.nextToken();
+                this.assertToken(TokenType.SEMI_COLON_TKN, "Semi-colons are required at the end of return statements");
+                this.nextToken(); // Consume semi-colon;
                 return returnStatement;
-            case TokenType.LEFT_PARENS_TKN:
-            case TokenType.IDENTIFIER_TKN:
-                let refName = this.parseReference();
-                if (this.checkToken(TokenType.SEMI_COLON_TKN)) {
-                    this.assertToken(
-                        TokenType.SEMI_COLON_TKN,
-                        ";",
-                        "Semi-colons are required at the end of statements"
-                    );
+            case TokenType.OPERATOR_TKN:
+                this.err.atToken_PANIC(
+                    "Operator definitions are only allowed in modules or in global scope",
+                    this.peekToken()
+                );
+            default:
+                let refName = this.parseExpression();
+                if (
+                    !this.checkToken(TokenType.COLON_TKN) &&
+                    !this.checkToken(TokenType.MUTABLE_ASSIGNMENT_TKN) &&
+                    !this.checkToken(TokenType.IMMUTABLE_ASSIGNMENT_TKN) &&
+                    !this.checkToken(TokenType.CONST_ASSIGNMENT_TKN)
+                ) {
+                    this.assertToken(TokenType.SEMI_COLON_TKN, "This expression must end with a semi-colon");
                     this.nextToken(); // Consume semi-colon
                     return refName;
                 } else {
-                    let dec = this.parseDeclarationFromName(scope, refName);
-                    this.assertSemiColonAfterDeclaration(dec);
-                    return dec;
+                    return this.parseDeclarationFromName(refName, scope);
                 }
-            default:
-                this.err.atToken_PANIC(
-                    "Declaration or expression must start with a reference to a name",
-                    this.peekToken()
-                );
         }
     }
-    private parseDeclaration(scope: Scope): AST.ASTDeclaration {
-        if (!this.checkToken(TokenType.IDENTIFIER_TKN)) {
-            this.err.atToken_PANIC("The expected declaration must start with a variable name", this.peekToken());
-        }
-        return this.parseDeclarationFromName(scope, this.parseReference());
-    }
-    private parseDeclarationFromName(scope: Scope, identifier: AST.ASTReference): AST.ASTDeclaration {
-        let declaration = new AST.ASTDeclaration(identifier.locToken);
-        declaration.lvalue = identifier;
-        if (declaration.lvalue.nodeName == AST.NodeType.NAME) {
-            let name = <AST.ASTName>declaration.lvalue;
-            let attemptAdded = scope.attemptAdd(name.refName, declaration);
-            if (!attemptAdded.locToken.equals(declaration.locToken)) {
-                this.err
-                    .atToken("Found duplicate name declaration here", attemptAdded.locToken)
-                    .atToken_PANIC("Other duplicate name declaration here ", declaration.locToken);
-            }
-        } else {
-            this.err.atToken("Handle complex declaration names", declaration.locToken).warn();
-        }
-
-        if (this.checkToken(TokenType.COLON_TKN)) {
-            this.nextToken();
-            declaration.type = this.parseType();
-        }
-        if (this.checkToken(TokenType.ASSIGNMENT_TKN)) {
-            this.nextToken();
-
-            switch (this.peekToken().type) {
-                case TokenType.TYPE_TKN:
-                    declaration.rvalue = this.parseTypeDefinition(scope);
-                    break;
-                case TokenType.MODULE_TKN:
-                    declaration.rvalue = this.parseModule(scope);
-                    break;
-                default:
-                    //Distinguish function declaration from variable declaration
-                    if (
-                        (this.lookAheadToken(1).type === TokenType.LEFT_PARENS_TKN &&
-                            this.lookAheadToken(2).type === TokenType.IDENTIFIER_TKN &&
-                            this.lookAheadToken(3).type === TokenType.COLON_TKN) ||
-                        (this.lookAheadToken(1).type === TokenType.LEFT_PARENS_TKN &&
-                            this.lookAheadToken(2).type === TokenType.RIGHT_PARENS_TKN &&
-                            (this.lookAheadToken(3).type === TokenType.ARROW_TKN ||
-                                this.lookAheadToken(3).type === TokenType.LEFT_CURLY_TKN))
-                    ) {
-                        declaration.rvalue = this.parseFunction(scope);
-                    } else {
-                        declaration.rvalue = this.parseExpression();
-                    }
-            }
-        }
-        if (!declaration.type && !declaration.rvalue) {
-            // a for
-            //   ^
-            this.err
-                .atToken("Error in declaration", declaration.locToken)
-                .atToken_PANIC(
-                    this.peekToken().stringValue +
-                        " is not allowed here. Declaration must either assign a value using = or specify a type using :",
-                    this.peekToken()
-                );
-        }
-        return declaration;
-    }
-    private assertSemiColonAfterDeclaration(declaration: AST.ASTDeclaration) {
-        if (
-            declaration.rvalue &&
-            (declaration.rvalue.nodeName === AST.NodeType.FUNCTION ||
-                declaration.rvalue.nodeName === AST.NodeType.MODULE ||
-                declaration.rvalue.nodeName === AST.NodeType.TYPE_DEF)
-        ) {
-            if (this.checkToken(TokenType.SEMI_COLON_TKN)) {
-                switch (declaration.rvalue.nodeName) {
-                    case AST.NodeType.MODULE:
-                        this.err
-                            .atToken("Error in module declaration", declaration.locToken)
-                            .atToken_PANIC("Semi-colons are not accepted after a module declaration", this.peekToken());
-                    case AST.NodeType.TYPE_DEF:
-                        this.err
-                            .atToken("Error in type definition", declaration.locToken)
-                            .atToken_PANIC("Semi-colons are not accepted after a type definition", this.peekToken());
-                    case AST.NodeType.FUNCTION:
-                        this.err
-                            .atToken("Error in function declaration", declaration.locToken)
-                            .atToken_PANIC(
-                                "Semi-colons are not accepted after a function declaration",
-                                this.peekToken()
-                            );
-                }
-            }
-        } else {
-            if (this.checkToken(TokenType.RIGHT_PARENS_TKN)) {
-                this.err.atToken_PANIC("Unbalanced parenthesis. Expected a semi-colon", this.peekToken());
-            }
-            if (!this.checkToken(TokenType.SEMI_COLON_TKN)) {
-                this.err
-                    .atToken("Error in declaration", declaration.lvalue.locToken)
-                    .atAfterLastToken_PANIC(
-                        "Expected a semi-colon at the end of the variable declaration but got " +
-                            this.peekToken().stringValue +
-                            " instead",
-                        this.peekToken()
-                    );
-            }
-            this.nextToken();
-        }
-    }
-    private parseWith(scope: Scope): AST.ASTReference {
-        //TODO do stuff to find the with module and add it to the current scope
-
+    private parseWith(): AST.ASTExpression {
         this.nextToken(); //Consume with token
-        this.assertToken(
-            TokenType.IDENTIFIER_TKN,
-            "a module name",
-            "With keyword must be followed by a name reference to a module"
-        );
-        let withModuleReference = this.parseReference();
-        this.assertToken(TokenType.SEMI_COLON_TKN, ";", "Semi-colons are required at the end of with statements");
+        this.assertIdentifier("a module name", "With keyword must be followed by a name reference to a module");
+        let withModuleReference = this.parseExpression();
+        this.assertToken(TokenType.SEMI_COLON_TKN, "Semi-colons are required at the end of with statements");
         this.nextToken(); //Consume semi-colon
         return withModuleReference;
     }
-    private parseReference(): AST.ASTReference {
-        return this.recurseReference(this.peekToken());
-    }
-    private recurseReference(sourceToken: Token): AST.ASTReference {
-        let reference!: AST.ASTReference;
-        while (!this.checkToken(TokenType.END_TKN)) {
-            let tkn = this.peekToken();
-            if (reference) {
-                switch (tkn.type) {
-                    case TokenType.IDENTIFIER_TKN:
-                        this.err
-                            .atToken("Error in reference starting with", sourceToken)
-                            .atToken_PANIC(
-                                "A dot must be used to separate a name from the reference to the left of it",
-                                tkn
-                            );
-                    case TokenType.LEFT_PARENS_TKN:
-                        reference = this.parseCall(reference, sourceToken);
-                        continue;
-                    case TokenType.DOT_TKN:
-                        let dotOp = new AST.ASTDotOperator(reference.locToken);
-                        dotOp.rootValue = reference;
-                        this.nextToken(); //Consume the dot token
-                        dotOp.memberValue = this.recurseReference(sourceToken);
-                        reference = dotOp;
-                        continue;
-                    default:
-                        return reference;
-                }
-            } else {
-                switch (tkn.type) {
-                    case TokenType.IDENTIFIER_TKN:
-                        reference = new AST.ASTName(this.nextToken());
-                        reference.refName = reference.locToken.stringValue;
-                        continue;
-                    case TokenType.DOT_TKN:
-                        this.err
-                            .atToken("Error in reference starting with", sourceToken)
-                            .atToken_PANIC(
-                                "Can't start a reference with a dot or have two dots in a row",
-                                this.peekToken()
-                            );
-                    default:
-                        this.err
-                            .atToken("Error in reference starting with", sourceToken)
-                            .atToken_PANIC(
-                                "Reference access must only contain names, dots and calls",
-                                this.peekToken()
-                            );
-                }
-            }
-        }
-        this.err
-            .atToken("Error in reference starting with", sourceToken)
-            .atAfterLastToken_PANIC(
-                "Unterminated code at end of file. Expected another name, dot or terminating token like semi-colon",
-                this.peekToken()
-            );
-        return reference;
-    }
     private parseIf(scope: Scope): AST.ASTIf {
-        this.assertToken(TokenType.IF_TKN, "if", "If statement must start with if keyword");
+        let ifScope = Scope.newScopeFrom(scope);
+        this.assertToken(TokenType.IF_TKN, "If statement must start with if keyword");
         let ifStatement = new AST.ASTIf(this.nextToken());
         ifStatement.condition = this.parseExpression();
 
-        if (this.checkToken(TokenType.RIGHT_PARENS_TKN))
+        if (this.checkToken(TokenType.RIGHT_PARENS_TKN)) {
             this.err.atToken_PANIC("Unbalanced parenthesis. Expected {", this.peekToken());
-        ifStatement.consequence = this.parseBlock(Scope.newScopeFrom(scope));
+        }
+        ifStatement.consequence = this.parseBlock(ifScope);
         if (this.checkToken(TokenType.ELSE_TKN)) {
             this.nextToken(); //Consume else token
             if (this.checkToken(TokenType.IF_TKN)) {
                 ifStatement.alternative = this.parseIf(scope);
-            } else if (this.checkToken(TokenType.LEFT_CURLY_TKN)) {
-                ifStatement.alternative = this.parseBlock(Scope.newScopeFrom(scope));
             } else if (this.checkToken(TokenType.END_TKN)) {
                 this.err
-                    .atToken("Error in if statement", ifStatement.locToken)
+                    .atNode("Error in if statement", ifStatement)
                     .atAfterLastToken_PANIC(
                         "Unterminated code at end of file. Expected if keyword or {",
                         this.peekToken()
                     );
             } else {
-                this.err.atToken_PANIC(
-                    this.peekToken().stringValue +
-                        " is not allowed here. Expected either an if keyword to create an else if or a { to declare a block",
-                    this.peekToken()
-                );
+                ifStatement.alternative = this.parseBlock(ifScope);
             }
         }
         return ifStatement;
     }
     private parseWhile(scope: Scope): AST.ASTWhile {
-        this.assertToken(TokenType.WHILE_TKN, "while", "While loop must start with while keyword");
+        this.assertToken(TokenType.WHILE_TKN, "While loop must start with while keyword");
         let whileStatement = new AST.ASTWhile(this.nextToken());
         whileStatement.condition = this.parseExpression();
-
         whileStatement.block = this.parseBlock(Scope.newScopeFrom(scope));
         return whileStatement;
     }
     private parseFor(scope: Scope): AST.ASTFor {
-        this.assertToken(TokenType.FOR_TKN, "for", "For loop must start with for keyword");
+        let forScope = Scope.newScopeFrom(scope);
+        this.assertToken(TokenType.FOR_TKN, "For loop must start with for keyword");
         let forStatement = new AST.ASTFor(this.nextToken());
 
         if (this.checkToken(TokenType.LEFT_PARENS_TKN)) {
@@ -408,27 +237,65 @@ export default class Parser {
         }
         switch (this.lookAheadToken(2).type) {
             case TokenType.LEFT_CURLY_TKN:
-                this.assertToken(TokenType.IDENTIFIER_TKN, "a variable reference to an iterable");
+                this.assertIdentifier("a variable reference to an iterable");
                 forStatement.iterableName = this.parseExpression();
                 break;
             case TokenType.COMMA_TKN:
-                forStatement.itemParamDec = new AST.ASTName(this.peekToken());
-                this.assertToken(TokenType.IDENTIFIER_TKN, "an 'item' variable declaration");
-                forStatement.itemParamDec.refName = this.nextToken().stringValue;
+                let itemDec = new AST.ASTDeclaration(this.peekToken());
+                forStatement.itemParamDec = itemDec;
+                itemDec.inScope = forScope;
+                itemDec.lvalue = new AST.ASTName(this.peekToken());
+                if (!this.checkToken(TokenType.IDENTIFIER_TKN)) {
+                    this.err.atToken_PANIC(
+                        "Expected a new 'item' variable declaration but got an expression instead",
+                        this.peekToken()
+                    );
+                }
+                itemDec.lvalue.refName = this.nextToken().stringValue;
+                forScope.addDeclaration(itemDec);
                 this.nextToken(); //Consume comma
-                forStatement.indexParamDec = new AST.ASTName(this.peekToken());
-                this.assertToken(TokenType.IDENTIFIER_TKN, "an 'index' variable declaration");
-                forStatement.indexParamDec.refName = this.nextToken().stringValue;
-                this.assertToken(TokenType.IN_TKN, "in");
+
+                let indexDec = new AST.ASTDeclaration(this.peekToken());
+                forStatement.indexParamDec = indexDec;
+                indexDec.inScope = forScope;
+                indexDec.lvalue = new AST.ASTName(this.peekToken());
+                indexDec.type = AST.newTypeLiteralNode(TokenType.NUM_TYPE_TKN, this.peekToken());
+                if (!this.checkToken(TokenType.IDENTIFIER_TKN)) {
+                    this.err.atToken_PANIC(
+                        "Expected a new 'index' variable declaration but got an expression instead",
+                        this.peekToken()
+                    );
+                }
+                indexDec.lvalue.refName = this.nextToken().stringValue;
+                if (itemDec.lvalue.refName === indexDec.lvalue.refName) {
+                    this.err
+                        .atNode("Duplicate variable declaration in for loop", itemDec)
+                        .atNode_PANIC("Variable name of item and index variable must be different", indexDec);
+                }
+                forScope.addDeclaration(itemDec);
+
+                this.assertToken(TokenType.IN_TKN);
                 this.nextToken(); //Consume in token
-                this.assertToken(TokenType.IDENTIFIER_TKN, "a variable reference to an iterable");
+
+                this.assertIdentifier("a variable reference to an iterable");
                 forStatement.iterableName = this.parseExpression();
                 break;
             case TokenType.IN_TKN:
-                forStatement.itemParamDec = new AST.ASTName(this.peekToken());
-                this.assertToken(TokenType.IDENTIFIER_TKN, "an 'item' variable declaration");
-                forStatement.itemParamDec.refName = this.nextToken().stringValue;
+                let inItemDec = new AST.ASTDeclaration(this.peekToken());
+                forStatement.itemParamDec = inItemDec;
+                inItemDec.inScope = forScope;
+                inItemDec.lvalue = new AST.ASTName(this.peekToken());
+                if (!this.checkToken(TokenType.IDENTIFIER_TKN)) {
+                    this.err.atToken_PANIC(
+                        "Expected a new 'item' variable declaration but got an expression instead",
+                        this.peekToken()
+                    );
+                }
+                inItemDec.lvalue.refName = this.nextToken().stringValue;
+                forScope.addDeclaration(inItemDec);
+
                 this.nextToken(); //Consume in
+
                 if (this.checkToken(TokenType.HASH_RANGE_TKN)) {
                     this.nextToken(); //Consume #range token
                     let isLowerBoundExclusive = false;
@@ -449,7 +316,7 @@ export default class Parser {
                             forStatement.lowerBound.locToken.c,
                             TokenType.OP_ADD_TKN
                         );
-                        expression.rvalue = this.makeNewLiteralNode(forStatement.lowerBound.locToken, 1);
+                        expression.rvalue = AST.newLiteralNode(1, forStatement.lowerBound.locToken);
                         forStatement.lowerBound = expression;
                     }
 
@@ -459,7 +326,7 @@ export default class Parser {
                             this.peekToken()
                         );
                     }
-                    this.assertToken(TokenType.COMMA_TKN, ",", "Invalid declaration of a for loop range");
+                    this.assertToken(TokenType.COMMA_TKN, "Invalid declaration of a for loop range");
                     this.nextToken();
 
                     forStatement.upperBound = this.parseExpression();
@@ -473,7 +340,7 @@ export default class Parser {
                             forStatement.upperBound.locToken.c,
                             TokenType.OP_SUBTR_TKN
                         );
-                        expression.rvalue = this.makeNewLiteralNode(forStatement.upperBound.locToken, 1);
+                        expression.rvalue = AST.newLiteralNode(1, forStatement.upperBound.locToken);
                         forStatement.upperBound = expression;
                     } else if (!this.checkToken(TokenType.RIGHT_SQUARE_TKN)) {
                         this.err.atToken_PANIC("Expected either a ] or a )", this.peekToken());
@@ -481,8 +348,7 @@ export default class Parser {
                     this.nextToken(); //consume ) or ]
                     break;
                 } else {
-                    this.assertToken(
-                        TokenType.IDENTIFIER_TKN,
+                    this.assertIdentifier(
                         "a variable reference to an iterable",
                         "A potential fix is to use #range after the in keyword to denote iteration over a range"
                     );
@@ -491,96 +357,200 @@ export default class Parser {
                 }
             default:
                 this.err.atToken_PANIC(
-                    "Invalid for loop. Expected a variable name but got " + this.peekToken().stringValue + " instead",
+                    "Invalid for loop. Expected a single variable name but got an expression instead",
                     this.peekToken()
                 );
         }
-        forStatement.block = this.parseBlock(Scope.newScopeFrom(scope));
+        forStatement.block = this.parseBlock(forScope);
         return forStatement;
     }
-    private parseModule(scope: Scope): AST.ASTModule {
-        let moduleScope = Scope.newScopeFrom(scope);
-        this.assertToken(TokenType.MODULE_TKN, "module", "Module must start with module keyword");
-        let module = new AST.ASTModule(this.nextToken());
+    private parseOperatorDefinition(): AST.ASTOperatorDefinition {
+        let operatorDef = new AST.ASTOperatorDefinition(this.peekToken());
+        this.assertToken(TokenType.OPERATOR_TKN, "Operator definition must start with operator keyword");
+        this.nextToken(); //Consume operator token
+        operatorDef.operatorName = this.nextToken();
+        this.assertToken(
+            TokenType.CONST_ASSIGNMENT_TKN,
+            "Operator definition must be a constant assignment to a function overload"
+        );
+        this.nextToken(); //Consume =>
+        operatorDef.functionOverload = this.parseFunction(this.globalScope);
+        this.globalScope.addOperatorOverload(operatorDef.operatorName.type, operatorDef.functionOverload);
+        return operatorDef;
+    }
+    private parseDeclaration(scope: Scope): AST.ASTDeclaration {
+        return this.parseDeclarationFromName(this.parseExpression(), scope);
+    }
+    private parseDeclarationFromName(refName: AST.ASTExpression, scope: Scope): AST.ASTDeclaration {
+        let decl = new AST.ASTDeclaration(refName.locToken);
+        decl.inScope = scope;
+        decl.lvalue = refName;
+        if (this.checkToken(TokenType.COLON_TKN)) {
+            this.nextToken(); //Consume :
+            decl.type = this.parseExpression();
+        }
 
+        let accessTkn: Token;
+        if (
+            this.checkToken(TokenType.MUTABLE_ASSIGNMENT_TKN) ||
+            this.checkToken(TokenType.IMMUTABLE_ASSIGNMENT_TKN) ||
+            this.checkToken(TokenType.CONST_ASSIGNMENT_TKN)
+        ) {
+            accessTkn = this.nextToken();
+            decl.accessAssignment = <AST.DeclarationAccessToken>accessTkn.type;
+            switch (this.peekToken().type) {
+                case TokenType.MODULE_TKN:
+                    if (decl.accessAssignment === TokenType.CONST_ASSIGNMENT_TKN) {
+                        decl.rvalue = this.parseModule(scope);
+                        if (this.checkToken(TokenType.SEMI_COLON_TKN)) {
+                            this.err
+                                .atNode("Error in module declaration", refName)
+                                .atToken_PANIC(
+                                    "Semi-colons are not accepted directly after the end bracket of a module declaration",
+                                    this.peekToken()
+                                );
+                        }
+                        break;
+                    } else {
+                        this.err
+                            .atNode("Error in module declaration", refName)
+                            .atToken_PANIC(
+                                "Module declarations must be constant: " + AST.exprToStr(refName) + " => module {...}",
+                                accessTkn
+                            );
+                    }
+                case TokenType.TYPE_TKN:
+                    if (decl.accessAssignment === TokenType.CONST_ASSIGNMENT_TKN) {
+                        decl.rvalue = this.parseTypeDefinition(Scope.newTypeDefScopeFrom(scope, decl));
+                        if (this.checkToken(TokenType.SEMI_COLON_TKN)) {
+                            this.err
+                                .atNode("Error in type definition", refName)
+                                .atToken_PANIC(
+                                    "Semi-colons are not accepted directly after the end bracket of a type definition",
+                                    this.peekToken()
+                                );
+                        }
+                        break;
+                    } else {
+                        this.err
+                            .atNode("Error in type definition", refName)
+                            .atToken_PANIC(
+                                "Type definitions must be constant: " + AST.exprToStr(refName) + " => type {...}",
+                                accessTkn
+                            );
+                    }
+                default:
+                    //Distinguish function declaration from variable declaration
+                    if (
+                        (this.lookAheadToken(1).type === TokenType.LEFT_PARENS_TKN &&
+                            this.lookAheadToken(2).type === TokenType.IDENTIFIER_TKN &&
+                            (this.lookAheadToken(3).type === TokenType.COLON_TKN ||
+                                this.lookAheadToken(3).type === TokenType.IMMUTABLE_ASSIGNMENT_TKN)) ||
+                        (this.lookAheadToken(1).type === TokenType.LEFT_PARENS_TKN &&
+                            this.lookAheadToken(2).type === TokenType.RIGHT_PARENS_TKN)
+                    ) {
+                        decl.rvalue = this.parseFunction(scope);
+                        if (this.checkToken(TokenType.SEMI_COLON_TKN)) {
+                            this.err
+                                .atNode("Error in function declaration", refName)
+                                .atToken_PANIC(
+                                    "Semi-colons are not accepted after a function declaration",
+                                    this.peekToken()
+                                );
+                        }
+                    } else {
+                        decl.rvalue = this.parseExpression();
+                        if (this.checkToken(TokenType.RIGHT_PARENS_TKN)) {
+                            this.err.atToken_PANIC("Unbalanced parenthesis. Expected a semi-colon", this.peekToken());
+                        } else if (!this.checkToken(TokenType.SEMI_COLON_TKN)) {
+                            let declNameType = decl.type ? "declaration" : "assignment";
+                            this.err
+                                .atNode("Error in " + declNameType, refName)
+                                .atAfterLastToken_PANIC(
+                                    "Expected a semi-colon at the end of the variable " +
+                                        declNameType +
+                                        " but got " +
+                                        this.peekToken().stringValue +
+                                        " instead",
+                                    this.peekToken()
+                                );
+                        }
+                        this.nextToken();
+                    }
+            }
+        } else {
+            this.assertToken(TokenType.SEMI_COLON_TKN, "Semi-colons are required at the end of variable declarations");
+            this.nextToken(); // Consume semi-colon
+        }
+
+        console.assert(
+            decl.type || decl.rvalue,
+            "This should be evaluted as an expression statement, not a declaration"
+        );
+        if (refName.nodeName === AST.NodeType.NAME) {
+            let isFunc = decl.rvalue && decl.rvalue.nodeName === AST.NodeType.FUNCTION;
+            if (isFunc || !scope.table.has((<AST.ASTName>refName).refName)) {
+                if (isFunc && decl.accessAssignment === TokenType.MUTABLE_ASSIGNMENT_TKN) {
+                    this.err
+                        .atNode("Function can't be assigned using mutable assignment", decl)
+                        .addNote_PANIC("Functions can only be assigned to a variable using = or =>");
+                }
+                scope.addDeclaration(decl);
+                return decl;
+            }
+        }
+        decl.isAssignment = true;
+        return decl;
+    }
+    private parseModule(scope: Scope): AST.ASTModule {
+        let moduleScope = Scope.newModuleScopeFrom(scope);
+        this.assertToken(TokenType.MODULE_TKN, "Module must start with module keyword");
+        let module = new AST.ASTModule(this.nextToken());
         module.withModules = [];
         module.declarations = [];
-        this.assertToken(TokenType.LEFT_CURLY_TKN, "{");
+        this.assertToken(TokenType.LEFT_CURLY_TKN);
         this.nextToken(); //Consume left curly
         while (!this.checkToken(TokenType.RIGHT_CURLY_TKN) && !this.checkToken(TokenType.END_TKN)) {
             if (this.checkToken(TokenType.WITH_TKN)) {
-                module.withModules.push(this.parseWith(scope));
+                module.withModules.push(this.parseWith());
+            } else if (this.checkToken(TokenType.OPERATOR_TKN)) {
+                this.err
+                    .atNode("Error in module", module)
+                    .atToken_PANIC("Modules are not yet allowed to define operator overloads", this.peekToken());
             } else {
-                if (!this.checkToken(TokenType.IDENTIFIER_TKN)) {
-                    this.err
-                        .atToken("Error in module", module.locToken)
-                        .atToken_PANIC("Module must only contain variable declarations", this.peekToken());
-                }
-                let declaration = this.parseDeclaration(moduleScope);
-                if (declaration.rvalue && declaration.nodeName === AST.NodeType.MODULE) {
-                    //TODO this may or may not change
-                    this.err.atToken_PANIC("Module declaration must be declared in global scope", this.peekToken());
-                }
-                module.declarations.push(declaration);
-                this.assertSemiColonAfterDeclaration(declaration);
+                module.declarations.push(this.parseDeclaration(moduleScope));
             }
         }
         if (this.checkToken(TokenType.END_TKN)) {
             this.err
-                .atToken("Error in module", module.locToken)
+                .atNode("Error in module", module)
                 .atAfterLastToken_PANIC("Unterminated code at end of file. Expected closing {", this.peekToken());
         } else {
             this.nextToken();
         }
         return module;
     }
-    private parseTypeDefinition(scope: Scope): AST.ASTTypeDefinition {
-        let typeDefScope = Scope.newTypeDefScopeFrom(scope);
-        this.assertToken(TokenType.TYPE_TKN, "type", "Type definition must start with type keyword");
+    private parseTypeDefinition(typeDefScope: Scope): AST.ASTTypeDefinition {
+        this.assertToken(TokenType.TYPE_TKN, "Type definition must start with type keyword");
         let typeDef = new AST.ASTTypeDefinition(this.nextToken());
-
         typeDef.withModules = [];
         typeDef.declarations = [];
-        this.assertToken(TokenType.LEFT_CURLY_TKN, "{", "Type definition must be enclosed in curly brackets");
+        this.assertToken(TokenType.LEFT_CURLY_TKN, "Type definition must be enclosed in curly brackets");
         this.nextToken(); //Consume left curly
         while (!this.checkToken(TokenType.RIGHT_CURLY_TKN) && !this.checkToken(TokenType.END_TKN)) {
             if (this.checkToken(TokenType.WITH_TKN)) {
-                typeDef.withModules.push(this.parseWith(typeDefScope));
+                typeDef.withModules.push(this.parseWith());
+            } else if (this.checkToken(TokenType.OPERATOR_TKN)) {
+                this.err
+                    .atNode("Error in type definition", typeDef)
+                    .atToken_PANIC("Type definitions are not allowed to define operator overloads", this.peekToken());
             } else {
-                if (!this.checkToken(TokenType.IDENTIFIER_TKN)) {
-                    this.err
-                        .atToken("Error in type definition", typeDef.locToken)
-                        .atToken_PANIC("Type definition must only contain variable declarations", this.peekToken());
-                }
-                let declaration = this.parseDeclaration(typeDefScope);
-                if (declaration.lvalue.nodeName !== AST.NodeType.NAME) {
-                    this.err.atToken_PANIC(
-                        "The variable name declaration of a type definition can't have dots",
-                        declaration.locToken
-                    );
-                }
-                typeDef.declarations.push(<AST.ASTSingleVarDeclaration>declaration);
-                if (declaration.rvalue) {
-                    if (declaration.nodeName === AST.NodeType.MODULE) {
-                        this.err
-                            .atToken("Error in type definition", typeDef.locToken)
-                            .atToken_PANIC("Modules are not allowed within type definitions", declaration.locToken);
-                    }
-                    if (declaration.nodeName === AST.NodeType.TYPE_DEF) {
-                        this.err
-                            .atToken("Error in type definition", typeDef.locToken)
-                            .atToken_PANIC(
-                                "Type definitions are not allowed within type definitions",
-                                declaration.locToken
-                            );
-                    }
-                }
-                this.assertSemiColonAfterDeclaration(declaration);
+                typeDef.declarations.push(this.parseDeclaration(typeDefScope));
             }
         }
         if (this.checkToken(TokenType.END_TKN)) {
             this.err
-                .atToken("Error in type definition", typeDef.locToken)
+                .atNode("Error in type definition", typeDef)
                 .atAfterLastToken_PANIC("Unterminated code at end of file. Expected closing {", this.peekToken());
         } else {
             this.nextToken();
@@ -593,16 +563,41 @@ export default class Parser {
 
         func.paramDeclaration = [];
 
-        this.assertToken(TokenType.LEFT_PARENS_TKN, "(", "Function declaration must specify parameters or use ()");
+        this.assertToken(TokenType.LEFT_PARENS_TKN, "Function declaration must specify parameters or use ()");
         this.nextToken(); //Consume left parenthesis
+
         while (!this.checkToken(TokenType.RIGHT_PARENS_TKN) && !this.checkToken(TokenType.END_TKN)) {
-            let declaration = this.parseDeclaration(functionScope);
-            if (declaration.lvalue.nodeName !== AST.NodeType.NAME)
-                this.err.atToken_PANIC(
-                    "The variable name declaration of a function parameter can't have dots",
-                    declaration.locToken
-                );
-            func.paramDeclaration.push(<AST.ASTSingleVarDeclaration>declaration);
+            let paramDec = new AST.ASTDeclaration(this.peekToken());
+            paramDec.inScope = functionScope;
+            this.assertIdentifier("a parameter name", "Function parameters must declare variable names");
+            paramDec.lvalue = new AST.ASTName(this.peekToken());
+            paramDec.lvalue.refName = this.nextToken().stringValue;
+            let otherDec = functionScope.getVariable(paramDec.lvalue);
+            if (otherDec) {
+                this.err
+                    .atNode("Found duplicate name for parameter declaration", paramDec)
+                    .atNode_PANIC("Other duplicate parameter here", otherDec);
+            } else {
+                functionScope.addDeclaration(paramDec);
+            }
+            if (this.checkToken(TokenType.COLON_TKN)) {
+                this.nextToken(); //Consume colon
+                paramDec.type = this.parseExpression();
+            }
+            if (this.checkToken(TokenType.IMMUTABLE_ASSIGNMENT_TKN)) {
+                this.nextToken(); //Consume =
+                paramDec.rvalue = this.parseExpression();
+            }
+            if (!paramDec.type && !paramDec.rvalue) {
+                this.err
+                    .atNode("Error in function definition", paramDec)
+                    .atToken_PANIC(
+                        this.peekToken().stringValue +
+                            " is not allowed here. Function parameter must either specify a type using : or assign a default value using =",
+                        this.peekToken()
+                    );
+            }
+            func.paramDeclaration.push(paramDec);
             if (this.checkToken(TokenType.COMMA_TKN)) {
                 let expectedTkn = this.lookAheadToken(2);
                 if (expectedTkn.type === TokenType.RIGHT_PARENS_TKN) {
@@ -633,39 +628,16 @@ export default class Parser {
 
         if (this.checkToken(TokenType.ARROW_TKN)) {
             this.nextToken();
-
             func.returnType = this.parseExpression();
         }
-        if (this.checkToken(TokenType.LEFT_CURLY_TKN)) {
-            func.block = this.parseBlock(functionScope);
-        } else {
-            //a = (b: num) for { }
-            //             ^
-            this.err.atToken_PANIC(
-                this.peekToken().stringValue +
-                    " is not allowed here. Function must either declare a return type using -> or omit completely",
-                this.peekToken()
-            );
-        }
+        func.block = this.parseBlock(functionScope);
 
         return func;
-    }
-    private parseType(): AST.ASTType {
-        let expression = this.parseExpression();
-        switch (expression.nodeName) {
-            case AST.NodeType.NAME:
-            case AST.NodeType.DOT_OP:
-            case AST.NodeType.CALL:
-            case AST.NodeType.TYPE_LITERAL:
-            case AST.NodeType.FUNCTION_TYPE:
-                return <AST.ASTType>expression;
-        }
-        this.err.atToken_PANIC("Invalid type expression", expression.locToken);
     }
 
     private precedence: Map<TokenType, number> = new Map();
     readonly LOWEST_PRECEDENCE: number = 0;
-    readonly HIGHEST_PRECEDENCE: number = 10;
+    readonly HIGHEST_PRECEDENCE: number = 100;
     private setPrecedence(precedence: number, ...types: TokenType[]) {
         for (let i = 0; i < types.length; i++) {
             this.precedence.set(types[i], precedence);
@@ -703,29 +675,7 @@ export default class Parser {
         this.setPrecedence(11, TokenType.OP_MULT_TKN, TokenType.OP_DIVIDE_TKN, TokenType.OP_MODULUS_TKN);
         this.setPrecedence(12, TokenType.OP_CARROT_TKN);
 
-        this.setPrecedence(13, TokenType.LEFT_PARENS_TKN); // For lambda calls. Reference calls are handled in "parseReference"
-    }
-    private makeNewLiteralNode(locToken: Token, value: number | string | boolean): AST.ASTLiteral {
-        let tkn: Token;
-        switch (typeof value) {
-            case "number":
-                tkn = new Token(value + "", locToken.line, locToken.c, TokenType.NUMERIC_LITERAL_TKN);
-                tkn.value = value;
-                break;
-            case "string":
-                tkn = new Token(value + "", locToken.line, locToken.c, TokenType.STRING_LITERAL_TKN);
-                tkn.value = value;
-                break;
-            case "boolean":
-                if (value) {
-                    tkn = new Token(value + "", locToken.line, locToken.c, TokenType.COND_TRUE_TKN);
-                } else {
-                    tkn = new Token(value + "", locToken.line, locToken.c, TokenType.COND_FALSE_TKN);
-                }
-        }
-        let literal = new AST.ASTLiteral(tkn);
-        literal.value = tkn;
-        return literal;
+        this.setPrecedence(13, TokenType.DOT_TKN, TokenType.LEFT_PARENS_TKN);
     }
     private parseExpression(): AST.ASTExpression {
         return this.recurseExpression(this.LOWEST_PRECEDENCE, 0, this.peekToken());
@@ -739,23 +689,28 @@ export default class Parser {
                     this.err
                         .atToken("Error in expression starting with", sourceToken)
                         .atToken_PANIC(
-                            "Operations on a module declaration are illegal. Modules should strictly be assigned to a variable",
+                            "Modules should strictly be assigned to a variable in the form [moduleName] => module {...}",
                             tkn
                         );
                 case TokenType.TYPE_TKN:
-                    this.err
-                        .atToken("Error in expression starting with", sourceToken)
-                        .atToken_PANIC(
-                            "Operations on a type definition are illegal. Type definitions should strictly be assigned to a variable",
-                            tkn
-                        );
+                    if (this.lookAheadToken(2).type === TokenType.LEFT_CURLY_TKN) {
+                        this.err
+                            .atToken("Error in expression starting with", sourceToken)
+                            .atToken_PANIC(
+                                "Modules should strictly be assigned to a variable in the form [typeName] => type {...}",
+                                tkn
+                            );
+                    }
             }
             if (expression) {
                 switch (tkn.type) {
+                    case TokenType.MUT_CAST_TKN:
+                    case TokenType.CONST_CAST_TKN:
                     case TokenType.NUM_TYPE_TKN:
                     case TokenType.STRING_TYPE_TKN:
                     case TokenType.BOOL_TYPE_TKN:
                     case TokenType.VOID_TYPE_TKN:
+                    case TokenType.TYPE_TKN:
                     case TokenType.NUMERIC_LITERAL_TKN:
                     case TokenType.STRING_LITERAL_TKN:
                     case TokenType.COND_TRUE_TKN:
@@ -784,18 +739,29 @@ export default class Parser {
                     case TokenType.DOT_TKN:
                         if (this.lookAheadToken(2).type === TokenType.LEFT_CURLY_TKN) {
                             expression = this.parseTypeConstruction(expression);
-                        } else {
-                            this.err
-                                .atToken("Error in expression starting with", sourceToken)
-                                .atToken_PANIC("Dot operator can only be used between two references", tkn);
+                            break;
                         }
                     default:
                         let curPrecedence = this.precedence.get(tkn.type);
                         if (curPrecedence !== undefined) {
                             if (curPrecedence > precedence) {
-                                if (this.checkToken(TokenType.LEFT_PARENS_TKN)) {
+                                if (this.checkToken(TokenType.DOT_TKN)) {
+                                    let dotOp = new AST.ASTDotOperator(expression.locToken);
+                                    dotOp.rootValue = expression;
+                                    this.nextToken(); //Consume the dot token
+                                    dotOp.memberValue = this.recurseExpression(curPrecedence, depthCount, sourceToken);
+                                    expression = dotOp;
+                                } else if (this.checkToken(TokenType.LEFT_PARENS_TKN)) {
                                     expression = this.parseCall(expression, sourceToken);
                                 } else {
+                                    if (this.checkToken(TokenType.BIN_SHIFT_LEFT_TKN)) {
+                                        if (this.lookAheadToken(2).type === TokenType.COND_LESS_THAN_TKN) {
+                                            this.err.atToken_PANIC(
+                                                "Arithmetic left shift is equivalent to logical left shift. Use << instead of <<<",
+                                                this.peekToken()
+                                            );
+                                        }
+                                    }
                                     let binOp = new AST.ASTBinaryOperator(expression.locToken);
                                     binOp.lvalue = expression;
                                     binOp.operation = this.nextToken();
@@ -806,7 +772,7 @@ export default class Parser {
                                 return expression;
                             }
                         } else {
-                            if (this.peekToken().type === TokenType.UNKNOWN_TKN) {
+                            if (this.checkToken(TokenType.UNKNOWN_TKN)) {
                                 this.err.atToken_PANIC(
                                     "Expression contains unknown operator " + this.peekToken().stringValue,
                                     this.peekToken()
@@ -822,12 +788,23 @@ export default class Parser {
                 }
             } else {
                 switch (tkn.type) {
+                    case TokenType.MUT_CAST_TKN:
+                    case TokenType.CONST_CAST_TKN:
+                        expression = new AST.ASTAccessCast(tkn);
+                        expression.accessType = <AST.AccessCastToken>this.nextToken().type;
+                        expression.castedType = this.recurseExpression(
+                            this.HIGHEST_PRECEDENCE,
+                            depthCount,
+                            sourceToken
+                        );
+                        break;
                     case TokenType.NUM_TYPE_TKN:
                     case TokenType.STRING_TYPE_TKN:
                     case TokenType.BOOL_TYPE_TKN:
                     case TokenType.VOID_TYPE_TKN:
+                    case TokenType.TYPE_TKN:
                         expression = new AST.ASTTypeLiteral(tkn);
-                        expression.type = this.nextToken();
+                        expression.type = <AST.TypeLiteralToken>this.nextToken().type;
                         break;
                     case TokenType.NUMERIC_LITERAL_TKN:
                     case TokenType.STRING_LITERAL_TKN:
@@ -861,7 +838,8 @@ export default class Parser {
                         }
                         break;
                     case TokenType.IDENTIFIER_TKN:
-                        expression = this.recurseReference(sourceToken);
+                        expression = new AST.ASTName(this.nextToken());
+                        expression.refName = expression.locToken.stringValue;
                         break;
                     case TokenType.LEFT_PARENS_TKN:
                         //This is an open parenthesis
@@ -869,10 +847,17 @@ export default class Parser {
                         expression = this.recurseExpression(this.LOWEST_PRECEDENCE, depthCount + 1, sourceToken);
                         this.nextToken(); //Consume right parenthesis
                         break;
+                    case TokenType.DOT_TKN:
+                        this.err
+                            .atToken("Error in reference starting with", sourceToken)
+                            .atToken_PANIC(
+                                "Can't start an expression with a dot or have two dots in a row",
+                                this.peekToken()
+                            );
                     case TokenType.OP_SUBTR_TKN:
                         // This is negation
                         expression = new AST.ASTBinaryOperator(tkn);
-                        expression.lvalue = this.makeNewLiteralNode(tkn, 0);
+                        expression.lvalue = AST.newLiteralNode(0, tkn);
                         expression.operation = this.nextToken();
                         expression.rvalue = this.recurseExpression(this.HIGHEST_PRECEDENCE, depthCount, sourceToken);
                         break;
@@ -920,36 +905,44 @@ export default class Parser {
     private parseTypeConstruction(prevExpression: AST.ASTExpression): AST.ASTTypeConstruction {
         let typeConstruct = new AST.ASTTypeConstruction(prevExpression.locToken);
         typeConstruct.typeRef = prevExpression;
-        this.assertToken(TokenType.DOT_TKN, ".", "dot '.' is required after the type name in a type construction");
+        this.assertToken(TokenType.DOT_TKN, "Dot '.' is required after the type name in a type construction");
         this.nextToken(); //Consume dot
-        this.assertToken(TokenType.LEFT_CURLY_TKN, "{", "Type construction must be enclosed in curly brackets");
+        this.assertToken(TokenType.LEFT_CURLY_TKN, "Type construction must be enclosed in curly brackets");
         this.nextToken(); //Consume left curly
         typeConstruct.assignments = [];
         while (!this.checkToken(TokenType.RIGHT_CURLY_TKN)) {
-            let declaration = new AST.ASTDeclaration(this.peekToken());
-            declaration.lvalue = this.parseReference();
-            if (declaration.lvalue.nodeName !== AST.NodeType.NAME) {
+            if (!this.checkToken(TokenType.IDENTIFIER_TKN)) {
                 this.err
-                    .atToken("Error in type constructor", typeConstruct.locToken)
-                    .atToken_PANIC(
-                        "Type constructor assignments need to be single variable names",
-                        declaration.lvalue.locToken
+                    .atNode("Error in type constructor", typeConstruct)
+                    .atToken_PANIC("Type construction assignments need to be single variable names", this.peekToken());
+            }
+            let lvalue = new AST.ASTName(this.peekToken());
+            lvalue.refName = this.nextToken().stringValue;
+            for (let i = 0; i < typeConstruct.assignments.length; i++) {
+                if ((<AST.ASTName>typeConstruct.assignments[i].lvalue).refName === lvalue.refName) {
+                    this.err
+                        .atToken("Repeated assignment in type construction", typeConstruct.assignments[i].locToken)
+                        .atNode_PANIC("Other repeated assignment found here", lvalue);
+                }
+            }
+            if (this.checkToken(TokenType.IMMUTABLE_ASSIGNMENT_TKN)) {
+                this.err
+                    .atNode("Error in type constructor", typeConstruct)
+                    .atToken_PANIC("Assignment in a type constructor must use <- instead of =", this.peekToken());
+            } else if (!this.checkToken(TokenType.REVERSE_ARROW_TKN)) {
+                this.err
+                    .atToken("Assignment in a type constructor must assign a value using <-", this.peekToken())
+                    .addNote_PANIC(
+                        "Type consteuction assignments need to be in the form [singleVariableName] <- [assignedValue]"
                     );
             }
-
-            if (this.checkToken(TokenType.ASSIGNMENT_TKN)) {
-                this.err
-                    .atToken("Error in type constructor", typeConstruct.locToken)
-                    .atToken_PANIC("Assignment in a type constructor must use <- instead of =", this.peekToken());
-            }
-            this.assertToken(
-                TokenType.REVERSE_ARROW_TKN,
-                "<-",
-                "Assignment in a type constructor must assign a value using <-"
-            );
             this.nextToken(); //Consume <-
-            declaration.rvalue = this.parseExpression();
-            typeConstruct.assignments.push(<AST.ASTSingleVarDeclaration>declaration);
+            let assignment = {
+                locToken: lvalue.locToken,
+                lvalue: lvalue,
+                rvalue: this.parseExpression(),
+            };
+            typeConstruct.assignments.push(assignment);
             if (this.checkToken(TokenType.COMMA_TKN)) {
                 let expectedTkn = this.lookAheadToken(2);
                 if (expectedTkn.type === TokenType.RIGHT_CURLY_TKN) {
@@ -975,14 +968,14 @@ export default class Parser {
         return typeConstruct;
     }
     private parseFunctionType(): AST.ASTFunctionType {
-        this.assertToken(TokenType.BACKSLASH_TKN, "\\", "Function type must start with a backslash");
+        this.assertToken(TokenType.BACKSLASH_TKN, "Function type must start with a backslash");
         this.nextToken();
 
         let type = new AST.ASTFunctionType(this.peekToken());
         this.nextToken();
         type.inputType = [];
         while (!this.checkToken(TokenType.RIGHT_PARENS_TKN) && !this.checkToken(TokenType.END_TKN)) {
-            type.inputType.push(this.parseType());
+            type.inputType.push(this.parseExpression());
             if (this.checkToken(TokenType.COMMA_TKN)) {
                 this.nextToken();
             } else if (!this.checkToken(TokenType.RIGHT_PARENS_TKN)) {
@@ -997,26 +990,25 @@ export default class Parser {
         if (this.checkToken(TokenType.END_TKN)) {
             // a : (num, num,
             this.err
-                .atToken("Error in type specifier", type.locToken)
+                .atNode("Error in declaration type specifier", type)
                 .atAfterLastToken_PANIC("Unterminated code at end of file. Expected another type", this.peekToken());
         } else {
             this.nextToken(); //Consume right parenthesis
         }
 
-        this.assertToken(TokenType.ARROW_TKN, "->", "Function type declarations must declare a return type.");
+        this.assertToken(TokenType.ARROW_TKN, "Function type declarations must declare a return type.");
         this.nextToken(); //Consume -> function
-        type.outType = this.parseType();
+        type.outType = this.parseExpression();
         return type;
     }
     private parseLambda(): AST.ASTLambda {
-        this.assertToken(TokenType.BACKSLASH_TKN, "\\", "Lambda expression must start with \\");
+        this.assertToken(TokenType.BACKSLASH_TKN, "Lambda expression must start with \\");
         let lambda = new AST.ASTLambda(this.nextToken());
 
         lambda.parameters = [];
         while (!this.checkToken(TokenType.END_TKN)) {
             let param = new AST.ASTName(this.peekToken());
-            this.assertToken(
-                TokenType.IDENTIFIER_TKN,
+            this.assertIdentifier(
                 "a name parameter to a lambda expression",
                 "Lambda parameters must be variable names"
             );
@@ -1030,13 +1022,13 @@ export default class Parser {
         }
         if (this.checkToken(TokenType.END_TKN)) {
             this.err
-                .atToken("Error in lambda expression", lambda.locToken)
+                .atNode("Error in lambda expression", lambda)
                 .atAfterLastToken_PANIC(
                     "Unterminated code at end of file. Expected another parameter",
                     this.peekToken()
                 );
         }
-        this.assertToken(TokenType.CONST_ASSIGNMENT_TKN, "=>", "Lambdas require => after the parameters");
+        this.assertToken(TokenType.CONST_ASSIGNMENT_TKN, "Lambdas require => after the parameters");
         this.nextToken(); // Consume =>
         if (this.checkToken(TokenType.RETURN_TKN)) {
             this.err.atToken_PANIC("Return keyword is not accepted in a lambda definition", this.peekToken());

@@ -19,22 +19,188 @@ export class Token {
         this.typeName = TokenType[type];
     }
     equals(other: Token): boolean {
-        return other.line === this.line && other.c === this.c && this.typeEquals(other) && other.value === this.value;
+        return (
+            other.line === this.line && other.c === this.c && this.isTokenTypeEqual(other) && other.value === this.value
+        );
     }
-    typeEquals(other: Token): boolean {
+    isTokenTypeEqual(other: Token): boolean {
         return other.type === this.type;
     }
 }
 
+export function tokenToStr(tokenType: TokenType): string {
+    switch (tokenType) {
+        case TokenType.COLON_TKN:
+            return ":";
+
+        //Assignments
+        case TokenType.CONST_ASSIGNMENT_TKN:
+            return "=>";
+        case TokenType.IMMUTABLE_ASSIGNMENT_TKN:
+            return "=";
+        case TokenType.MUTABLE_ASSIGNMENT_TKN:
+            return "~=";
+
+        // Blocks
+        case TokenType.LEFT_CURLY_TKN:
+            return "{";
+        case TokenType.RIGHT_CURLY_TKN:
+            return "}";
+        case TokenType.LEFT_SQUARE_TKN:
+            return "[";
+        case TokenType.RIGHT_SQUARE_TKN:
+            return "]";
+        case TokenType.LEFT_PARENS_TKN:
+            return "(";
+        case TokenType.RIGHT_PARENS_TKN:
+            return ")";
+
+        // Statement Keywords
+        case TokenType.TYPE_TKN:
+            return "type";
+        case TokenType.MODULE_TKN:
+            return "module";
+        case TokenType.WITH_TKN:
+            return "with";
+        case TokenType.IF_TKN:
+            return "if";
+        case TokenType.ELSE_TKN:
+            return "else";
+        case TokenType.WHILE_TKN:
+            return "while";
+        case TokenType.FOR_TKN:
+            return "for";
+        case TokenType.IN_TKN:
+            return "in";
+        case TokenType.BREAK_TKN:
+            return "break";
+        case TokenType.CONTINUE_TKN:
+            return "continue";
+        case TokenType.OPERATOR_TKN:
+            return "operator";
+
+        // Conditionals
+        case TokenType.COND_OR_TKN:
+            return "||";
+        case TokenType.COND_AND_TKN:
+            return "&&";
+        case TokenType.COND_XOR_TKN:
+            return "$$";
+        case TokenType.COND_NOT_TKN:
+            return "!";
+        case TokenType.COND_EQUALS_TKN:
+            return "==";
+        case TokenType.COND_NOT_EQUALS_TKN:
+            return "!=";
+        case TokenType.COND_LESS_THAN_TKN:
+            return "<";
+        case TokenType.COND_LESS_THAN_EQUAL_TKN:
+            return "<=";
+        case TokenType.COND_GREATER_THAN_TKN:
+            return ">";
+        case TokenType.COND_GREATER_THAN_EQUAL_TKN:
+            return ">=";
+        case TokenType.COND_TRUE_TKN:
+            return "true";
+        case TokenType.COND_FALSE_TKN:
+            return "false";
+
+        // Types
+        case TokenType.MUT_CAST_TKN:
+            return "mut";
+        case TokenType.CONST_CAST_TKN:
+            return "const";
+        case TokenType.VOID_TYPE_TKN:
+            return "void";
+        case TokenType.NUM_TYPE_TKN:
+            return "num";
+        case TokenType.STRING_TYPE_TKN:
+            return "string";
+        case TokenType.BOOL_TYPE_TKN:
+            return "bool";
+
+        // Bitwise Operators
+        case TokenType.BIN_OR_TKN:
+            return "or";
+        case TokenType.BIN_AND_TKN:
+            return "and";
+        case TokenType.BIN_XOR_TKN:
+            return "xor";
+        case TokenType.BIN_NOT_TKN:
+            return "~";
+        case TokenType.BIN_SHIFT_RIGHT_TKN:
+            return ">>";
+        case TokenType.BIN_SHIFT_ARITHMETIC_RIGHT_TKN:
+            return ">>>";
+        case TokenType.BIN_SHIFT_LEFT_TKN:
+            return "<<";
+
+        // Function Defs
+        case TokenType.ARROW_TKN:
+            return "->";
+        case TokenType.RETURN_TKN:
+            return "return";
+
+        // Lambda Def and function type
+        case TokenType.BACKSLASH_TKN:
+            return "\\";
+
+        // Operators
+        case TokenType.OP_ADD_TKN:
+            return "+";
+        case TokenType.OP_SUBTR_TKN:
+            return "-";
+        case TokenType.OP_MULT_TKN:
+            return "*";
+        case TokenType.OP_DIVIDE_TKN:
+            return "/";
+        case TokenType.OP_CARROT_TKN:
+            return "^";
+        case TokenType.OP_MODULUS_TKN:
+            return "%";
+        case TokenType.OP_ADD_ADD_TKN:
+            return "++";
+        case TokenType.OP_ADD_EQUALS_TKN:
+            return "+=";
+        case TokenType.OP_SUBTR_SUBTR_TKN:
+            return "--";
+        case TokenType.OP_SUBTR_EQUALS_TKN:
+            return "-=";
+        case TokenType.OP_MULT_EQUALS_TKN:
+            return "*=";
+        case TokenType.OP_DIV_EQUALS_TKN:
+            return "/=";
+
+        // Directives
+        case TokenType.HASH_RANGE_TKN:
+            return "#range";
+
+        // Miscellaneous
+        case TokenType.DOUBLE_QUOTE_TKN:
+            return '"';
+        case TokenType.DOT_TKN:
+            return ".";
+        case TokenType.ELLIPSIS_TKN:
+            return "...";
+        case TokenType.REVERSE_ARROW_TKN:
+            return "<-";
+        case TokenType.COMMA_TKN:
+            return ",";
+        case TokenType.SEMI_COLON_TKN:
+            return ";";
+        default:
+            return TokenType[tokenType];
+    }
+}
+
 export enum TokenType {
-    // Statements
     IDENTIFIER_TKN,
     COLON_TKN,
     NUMERIC_LITERAL_TKN,
     STRING_LITERAL_TKN,
 
     //Assignments
-    ASSIGNMENT_TKN,
+    IMMUTABLE_ASSIGNMENT_TKN,
     CONST_ASSIGNMENT_TKN,
     MUTABLE_ASSIGNMENT_TKN,
 
@@ -57,6 +223,7 @@ export enum TokenType {
     IN_TKN,
     BREAK_TKN,
     CONTINUE_TKN,
+    OPERATOR_TKN,
 
     // Conditionals
     COND_OR_TKN, // ||
@@ -73,6 +240,8 @@ export enum TokenType {
     COND_FALSE_TKN,
 
     // Types
+    MUT_CAST_TKN,
+    CONST_CAST_TKN,
     VOID_TYPE_TKN,
     NUM_TYPE_TKN,
     STRING_TYPE_TKN,
@@ -101,7 +270,6 @@ export enum TokenType {
     OP_DIVIDE_TKN,
     OP_CARROT_TKN,
     OP_MODULUS_TKN,
-    OP_BAR_TKN,
     OP_ADD_ADD_TKN,
     OP_ADD_EQUALS_TKN,
     OP_SUBTR_SUBTR_TKN,

@@ -1,19 +1,32 @@
-import { Token } from "./Token";
+import { Token, tokenToStr, TokenType } from "./Token";
 import { applyFmt, merge, space, tab, bar } from "./Log";
+import Scope from "./Scope";
+
+// export enum ASTFmt {
+//     NODE_FMT = "color: #C792DE",
+//     TYPE_FMT = "color: #FFEB95",
+//     IDENTIFIER_FMT = "color: #348DFF",
+//     EXPRESSION_FMT = "color: #E98C6C",
+//     FUNCTION_CALL_FMT = "color: #AD2836",
+//     WITH_MODULE_FMT = "color: #259F80",
+// }
 
 export enum ASTFmt {
-    NODE_FMT = "color: #C792DE",
-    TYPE_FMT = "color: #FFEB95",
-    IDENTIFIER_FMT = "color: #348DFF",
-    EXPRESSION_FMT = "color: #E98C6C",
-    FUNCTION_CALL_FMT = "color: #AD2836",
-    WITH_MODULE_FMT = "color: #259F80",
+    TYPE_FMT = "color: #DE8F6E",
+    IDENTIFIER_FMT = "color: #2D93AD",
+    EXPRESSION_FMT = "color: #88AB75",
+
+    WITH_MODULE_FMT = "color: #DBD56E",
+}
+
+function nodeNameToStr(astNode: ASTNode, fmt: string[]): string {
+    return applyFmt(astNode.constructor.name + " (" + astNode.locToken.line + ":" + astNode.locToken.c + ")", fmt);
 }
 
 function list(astNodes: ASTNode[], fmt: string[]): string[] {
     let lines: string[] = [];
     for (let i = 0; i < astNodes.length; i++) {
-        lines.push(" " + i + ": " + applyFmt(astNodes[i].constructor.name, fmt, ASTFmt.NODE_FMT));
+        lines.push(" " + i + ": " + nodeNameToStr(astNodes[i], fmt));
 
         merge(lines, bar(recurse(astNodes[i], fmt)));
     }
@@ -22,14 +35,11 @@ function list(astNodes: ASTNode[], fmt: string[]): string[] {
 
 export function exprToStr(astExpr: ASTExpression): string {
     switch (astExpr.nodeName) {
-        case NodeType.MODULE:
-            return "[MODULE_DEF]";
-        case NodeType.TYPE_DEF:
-            return "[TYPE_DEF]";
-        case NodeType.FUNCTION:
-            return "[FUNCTION]";
+        case NodeType.ACCESS_CAST:
+            let accessCast = <ASTAccessCast>astExpr;
+            return tokenToStr(accessCast.accessType) + " " + exprToStr(accessCast.castedType);
         case NodeType.TYPE_LITERAL:
-            return (<ASTTypeLiteral>astExpr).type.stringValue + "";
+            return tokenToStr((<ASTTypeLiteral>astExpr).type);
         case NodeType.FUNCTION_TYPE:
             let astType = <ASTFunctionType>astExpr;
             let out = "(";
@@ -41,10 +51,27 @@ export function exprToStr(astExpr: ASTExpression): string {
             }
             out += ") -> " + exprToStr(astType.outType);
             return out;
-        case NodeType.LITERAL:
-            return (<ASTLiteral>astExpr).value.stringValue + "";
+        case NodeType.MODULE:
+            return "[MODULE_DEF]";
+        case NodeType.TYPE_DEF:
+            return "[TYPE_DEF]";
+        case NodeType.FUNCTION:
+            return "[FUNCTION]";
         case NodeType.NAME:
             return (<ASTName>astExpr).refName + "";
+        case NodeType.DOT_OP:
+            let astDotOp = <ASTDotOperator>astExpr;
+            return "(" + exprToStr(astDotOp.rootValue) + "." + exprToStr(astDotOp.memberValue) + ")";
+        case NodeType.CALL:
+            let astCall = <ASTCall>astExpr;
+            let callVal = exprToStr(astCall.functionNameRef) + "(";
+            for (let i = 0; i < astCall.givenParams.length; i++) {
+                callVal += exprToStr(astCall.givenParams[i]);
+                if (i + 1 < astCall.givenParams.length) {
+                    callVal += ", ";
+                }
+            }
+            return callVal + ")";
         case NodeType.TYPE_CONSTRUCT:
             let astConstruction = <ASTTypeConstruction>astExpr;
             let constructVal = "";
@@ -58,26 +85,8 @@ export function exprToStr(astExpr: ASTExpression): string {
                 }
             }
             return exprToStr(astConstruction.typeRef) + "{" + constructVal + "}";
-        case NodeType.LAMBDA:
-            let astLambda = <ASTLambda>astExpr;
-            let lambdaVal = "\\";
-            for (let i = 0; i < astLambda.parameters.length; i++) {
-                lambdaVal += astLambda.parameters[i].refName;
-                if (i + 1 < astLambda.parameters.length) {
-                    lambdaVal += ",";
-                }
-            }
-            return lambdaVal + "=>" + exprToStr(astLambda.expression);
-        case NodeType.CALL:
-            let astCall = <ASTCall>astExpr;
-            let callVal = exprToStr(astCall.functionNameRef) + "(";
-            for (let i = 0; i < astCall.givenParams.length; i++) {
-                callVal += exprToStr(astCall.givenParams[i]);
-                if (i + 1 < astCall.givenParams.length) {
-                    callVal += ", ";
-                }
-            }
-            return callVal + ")";
+        case NodeType.LITERAL:
+            return (<ASTLiteral>astExpr).value.stringValue + "";
         case NodeType.UNARY_OP:
             return (
                 (<ASTUnaryOperator>astExpr).operation.stringValue +
@@ -96,9 +105,16 @@ export function exprToStr(astExpr: ASTExpression): string {
                 exprToStr(astBinOp.rvalue) +
                 ")"
             );
-        case NodeType.DOT_OP:
-            let astDotOp = <ASTDotOperator>astExpr;
-            return "(" + exprToStr(astDotOp.rootValue) + "." + exprToStr(astDotOp.memberValue) + ")";
+        case NodeType.LAMBDA:
+            let astLambda = <ASTLambda>astExpr;
+            let lambdaVal = "\\";
+            for (let i = 0; i < astLambda.parameters.length; i++) {
+                lambdaVal += astLambda.parameters[i].refName;
+                if (i + 1 < astLambda.parameters.length) {
+                    lambdaVal += ",";
+                }
+            }
+            return lambdaVal + "=>" + exprToStr(astLambda.expression);
         default:
             throw (
                 "Can't recursively print expression because given node is not an AST expression: " +
@@ -112,41 +128,39 @@ export function recurse(astNode: ASTNode, fmt: string[]): string[] {
         case NodeType.PROGRAM:
             let linesPrgm: string[] = [];
             let astPrgm = <ASTProgram>astNode;
-            merge(linesPrgm, ["statements:"]);
-            merge(linesPrgm, list(astPrgm.statements, fmt));
+            merge(linesPrgm, ["operatorDefinitions:"]);
+            merge(linesPrgm, list(astPrgm.operatorDefinitions, fmt));
+            merge(linesPrgm, ["withModules: "]);
+            let withModInPrgm = [];
+            for (let i = 0; i < astPrgm.withModules.length; i++) {
+                withModInPrgm.push(applyFmt(exprToStr(astPrgm.withModules[i]), fmt, ASTFmt.WITH_MODULE_FMT));
+            }
+            merge(linesPrgm, space(4, withModInPrgm));
+            merge(linesPrgm, ["declarations:"]);
+            merge(linesPrgm, list(astPrgm.declarations, fmt));
             return linesPrgm;
         case NodeType.BLOCK:
             let linesBlock: string[] = [];
             let astBlock = <ASTBlock>astNode;
-            merge(linesBlock, ["withModules: "]);
-            let withModules = [];
-            for (let i = 0; i < astBlock.withModules.length; i++) {
-                withModules.push(applyFmt(exprToStr(astBlock.withModules[i]), fmt, ASTFmt.WITH_MODULE_FMT));
+            if (astBlock.withModules) {
+                merge(linesBlock, ["withModules: "]);
+                let withModules = [];
+                for (let i = 0; i < astBlock.withModules.length; i++) {
+                    withModules.push(applyFmt(exprToStr(astBlock.withModules[i]), fmt, ASTFmt.WITH_MODULE_FMT));
+                }
+                merge(linesBlock, space(4, withModules));
             }
-            merge(linesBlock, space(4, withModules));
             merge(linesBlock, ["statements:"]);
             merge(linesBlock, list(astBlock.statements, fmt));
             return linesBlock;
-        case NodeType.DECLARATION:
-            let linesDec: string[] = [];
-            let astDec = <ASTDeclaration>astNode;
-            merge(linesDec, ["lvalue: " + applyFmt(exprToStr(astDec.lvalue), fmt, ASTFmt.IDENTIFIER_FMT)]);
-            if (astDec.type) {
-                merge(linesDec, ["type:   " + applyFmt(exprToStr(astDec.type), fmt, ASTFmt.TYPE_FMT)]);
-            }
-            if (astDec.rvalue) {
-                merge(linesDec, ["rvalue: " + applyFmt(astDec.rvalue.constructor.name, fmt, ASTFmt.NODE_FMT)]);
-                merge(linesDec, tab(space(4, recurse(astDec.rvalue, fmt))));
-            }
-            return linesDec;
         case NodeType.IF:
             let linesIf: string[] = [];
             let astIf = <ASTIf>astNode;
             merge(linesIf, ["condition: " + applyFmt(exprToStr(astIf.condition), fmt, ASTFmt.EXPRESSION_FMT)]);
-            merge(linesIf, ["consequence: " + applyFmt(astIf.consequence.constructor.name, fmt, ASTFmt.NODE_FMT)]);
+            merge(linesIf, ["consequence: " + nodeNameToStr(astIf.consequence, fmt)]);
             merge(linesIf, tab(space(9, recurse(astIf.consequence, fmt))));
             if (astIf.alternative) {
-                merge(linesIf, ["alternative: " + applyFmt(astIf.alternative.constructor.name, fmt, ASTFmt.NODE_FMT)]);
+                merge(linesIf, ["alternative: " + nodeNameToStr(astIf.alternative, fmt)]);
                 merge(linesIf, tab(space(9, recurse(astIf.alternative, fmt))));
             }
             return linesIf;
@@ -154,7 +168,7 @@ export function recurse(astNode: ASTNode, fmt: string[]): string[] {
             let linesWhile: string[] = [];
             let astWhile = <ASTWhile>astNode;
             merge(linesWhile, ["condition: " + applyFmt(exprToStr(astWhile.condition), fmt, ASTFmt.EXPRESSION_FMT)]);
-            merge(linesWhile, ["block: " + applyFmt(astWhile.block.constructor.name, fmt, ASTFmt.NODE_FMT)]);
+            merge(linesWhile, ["block: " + nodeNameToStr(astWhile.block, fmt)]);
             merge(linesWhile, tab(space(3, recurse(astWhile.block, fmt))));
             return linesWhile;
         case NodeType.FOR:
@@ -162,17 +176,17 @@ export function recurse(astNode: ASTNode, fmt: string[]): string[] {
             let astFor = <ASTFor>astNode;
             if (astFor.itemParamDec) {
                 merge(linesFor, [
-                    "itemParamDec:  " + applyFmt(exprToStr(astFor.itemParamDec), fmt, ASTFmt.IDENTIFIER_FMT),
+                    "itemParamDec:  " + applyFmt(exprToStr(astFor.itemParamDec.lvalue), fmt, ASTFmt.IDENTIFIER_FMT),
                 ]);
             }
             if (astFor.indexParamDec) {
                 merge(linesFor, [
-                    "indexParamDec: " + applyFmt(exprToStr(astFor.indexParamDec), fmt, ASTFmt.IDENTIFIER_FMT),
+                    "indexParamDec: " + applyFmt(exprToStr(astFor.indexParamDec.lvalue), fmt, ASTFmt.IDENTIFIER_FMT),
                 ]);
             }
             if (astFor.iterableName) {
                 merge(linesFor, [
-                    "iterableName:  " + applyFmt(exprToStr(astFor.iterableName), fmt, ASTFmt.IDENTIFIER_FMT),
+                    "iterableName:  " + applyFmt(exprToStr(astFor.iterableName), fmt, ASTFmt.EXPRESSION_FMT),
                 ]);
             }
             if (astFor.lowerBound !== undefined) {
@@ -185,7 +199,7 @@ export function recurse(astNode: ASTNode, fmt: string[]): string[] {
                         ),
                 ]);
             }
-            merge(linesFor, ["block: " + applyFmt(astFor.block.constructor.name, fmt, ASTFmt.NODE_FMT)]);
+            merge(linesFor, ["block: " + nodeNameToStr(astFor.block, fmt)]);
             merge(linesFor, tab(space(3, recurse(astFor.block, fmt))));
             return linesFor;
         case NodeType.BREAK:
@@ -197,6 +211,37 @@ export function recurse(astNode: ASTNode, fmt: string[]): string[] {
                 return ["returnValue: " + applyFmt(exprToStr(astRet.returnValue), fmt, ASTFmt.EXPRESSION_FMT)];
             }
             return [];
+        case NodeType.OPERATOR_DEF:
+            let linesOpDef: string[] = [];
+            let astOpDef = <ASTOperatorDefinition>astNode;
+            merge(linesOpDef, ["operatorName: " + astOpDef.operatorName.stringValue]);
+            merge(linesOpDef, ["functionOverload: " + nodeNameToStr(astOpDef.functionOverload, fmt)]);
+            merge(linesOpDef, tab(space(14, recurse(astOpDef.functionOverload, fmt))));
+            return linesOpDef;
+        case NodeType.DECLARATION:
+            let linesDec: string[] = [];
+            let astDec = <ASTDeclaration>astNode;
+            if (astDec.isAssignment) {
+                merge(linesDec, ["lvalue: " + applyFmt(exprToStr(astDec.lvalue), fmt, ASTFmt.EXPRESSION_FMT)]);
+            } else {
+                merge(linesDec, ["lvalue: " + applyFmt(exprToStr(astDec.lvalue), fmt, ASTFmt.IDENTIFIER_FMT)]);
+            }
+            if (astDec.type) {
+                merge(linesDec, ["type:   " + applyFmt(exprToStr(astDec.type), fmt, ASTFmt.TYPE_FMT)]);
+            }
+            if (astDec.rvalue) {
+                if (
+                    astDec.rvalue.nodeName === NodeType.MODULE ||
+                    astDec.rvalue.nodeName === NodeType.TYPE_DEF ||
+                    astDec.rvalue.nodeName === NodeType.FUNCTION
+                ) {
+                    merge(linesDec, ["rvalue: " + nodeNameToStr(astDec.rvalue, fmt)]);
+                    merge(linesDec, tab(space(4, recurse(astDec.rvalue, fmt))));
+                } else {
+                    merge(linesDec, ["rvalue: " + applyFmt(exprToStr(astDec.rvalue), fmt, ASTFmt.EXPRESSION_FMT)]);
+                }
+            }
+            return linesDec;
         case NodeType.MODULE:
             let linesMod: string[] = [];
             let astMod = <ASTModule>astNode;
@@ -229,21 +274,22 @@ export function recurse(astNode: ASTNode, fmt: string[]): string[] {
                 merge(linesFunc, list(astFunc.paramDeclaration, fmt));
             }
             if (astFunc.returnType) {
-                merge(linesFunc, ["returnType: " + recurse(astFunc.returnType, fmt)]);
+                merge(linesFunc, ["returnType: " + applyFmt(exprToStr(astFunc.returnType), fmt, ASTFmt.TYPE_FMT)]);
             }
-            merge(linesFunc, ["block: " + applyFmt(astFunc.block.constructor.name, fmt, ASTFmt.NODE_FMT)]);
+            merge(linesFunc, ["block: " + nodeNameToStr(astFunc.block, fmt)]);
             merge(linesFunc, tab(space(3, recurse(astFunc.block, fmt))));
             return linesFunc;
+        case NodeType.ACCESS_CAST:
         case NodeType.TYPE_LITERAL:
         case NodeType.FUNCTION_TYPE:
-        case NodeType.LITERAL:
         case NodeType.NAME:
-        case NodeType.TYPE_CONSTRUCT:
-        case NodeType.LAMBDA:
+        case NodeType.DOT_OP:
         case NodeType.CALL:
+        case NodeType.TYPE_CONSTRUCT:
+        case NodeType.LITERAL:
         case NodeType.UNARY_OP:
         case NodeType.BINARY_OP:
-        case NodeType.DOT_OP:
+        case NodeType.LAMBDA:
             return [applyFmt(exprToStr(<ASTExpression>astNode), fmt, ASTFmt.EXPRESSION_FMT)];
         default:
             throw "Can't recursively print tree because given node is not an AST node: " + astNode.constructor.name;
@@ -253,7 +299,7 @@ export function recurse(astNode: ASTNode, fmt: string[]): string[] {
 export function printAST(astNode: ASTNode) {
     let fmt: string[] = [];
     let outA: string[] = [];
-    merge(outA, [applyFmt(astNode.constructor.name, fmt, ASTFmt.NODE_FMT)]);
+    merge(outA, [nodeNameToStr(astNode, fmt)]);
     merge(outA, recurse(astNode, fmt));
 
     let str: string[] = [outA.join("\n")];
@@ -263,35 +309,64 @@ export function printAST(astNode: ASTNode) {
     console.log.apply(printAST, str);
 }
 
-export function isExpressionEqual(e0: ASTExpression, e1: ASTExpression): boolean {
-    if (e0.nodeName !== e1.nodeName) return false;
-    switch (e0.nodeName) {
-        case NodeType.TYPE_LITERAL:
-            let typeLit0 = <ASTTypeLiteral>e0;
-            let typeLit1 = <ASTTypeLiteral>e1;
-            return typeLit0.type.typeEquals(typeLit1.type);
-        case NodeType.FUNCTION_TYPE:
-            let func0 = <ASTFunctionType>e0;
-            let func1 = <ASTFunctionType>e1;
-            if (!isExpressionEqual(func0.outType, func1.outType)) return false;
-            for (let i = 0; i < func0.inputType.length; i++) {
-                if (!isExpressionEqual(func0.inputType[i], func1.inputType[i])) return false;
+export function newLiteralNode(value: number | string | boolean, locToken: Token): ASTLiteral {
+    let tkn: Token;
+    switch (typeof value) {
+        case "number":
+            tkn = new Token(value + "", locToken.line, locToken.c, TokenType.NUMERIC_LITERAL_TKN);
+            tkn.value = value;
+            break;
+        case "string":
+            tkn = new Token(value + "", locToken.line, locToken.c, TokenType.STRING_LITERAL_TKN);
+            tkn.value = value;
+            break;
+        case "boolean":
+            if (value) {
+                tkn = new Token(value + "", locToken.line, locToken.c, TokenType.COND_TRUE_TKN);
+            } else {
+                tkn = new Token(value + "", locToken.line, locToken.c, TokenType.COND_FALSE_TKN);
             }
-            return true;
-        case NodeType.NAME:
-            let name0 = <ASTName>e0;
-            let name1 = <ASTName>e1;
-            return name0.refName === name1.refName;
+        default:
+            throw "Can't make literal node for value=" + value;
     }
-    return false;
+    let literal = new ASTLiteral(tkn);
+    literal.value = tkn;
+    return literal;
+}
+
+export function newTypeLiteralNode(type: TypeLiteralToken, locToken: Token): ASTTypeLiteral {
+    let tkn: Token;
+    switch (type) {
+        case TokenType.MODULE_TKN:
+            tkn = new Token("module", locToken.line, locToken.c, TokenType.MODULE_TKN);
+            break;
+        case TokenType.TYPE_TKN:
+            tkn = new Token("type", locToken.line, locToken.c, TokenType.TYPE_TKN);
+            break;
+        case TokenType.VOID_TYPE_TKN:
+            tkn = new Token("void", locToken.line, locToken.c, TokenType.VOID_TYPE_TKN);
+            break;
+        case TokenType.NUM_TYPE_TKN:
+            tkn = new Token("num", locToken.line, locToken.c, TokenType.NUM_TYPE_TKN);
+            break;
+        case TokenType.STRING_TYPE_TKN:
+            tkn = new Token("string", locToken.line, locToken.c, TokenType.STRING_TYPE_TKN);
+            break;
+        case TokenType.BOOL_TYPE_TKN:
+            tkn = new Token("bool", locToken.line, locToken.c, TokenType.BOOL_TYPE_TKN);
+            break;
+        default:
+            throw "Casn't make type literal node for typeID=" + type;
+    }
+    let typeLiteral = new ASTTypeLiteral(tkn);
+    typeLiteral.type = type;
+    return typeLiteral;
 }
 
 export enum NodeType {
     PROGRAM,
     BLOCK,
 
-    DECLARATION,
-    SINGLE_DECLARATION,
     IF,
     WHILE,
     FOR,
@@ -299,21 +374,26 @@ export enum NodeType {
     CONTINUE,
     RETURN,
 
+    OPERATOR_DEF,
+    DECLARATION,
+
+    ACCESS_CAST,
+    TYPE_LITERAL,
+    FUNCTION_TYPE,
+
     MODULE,
     TYPE_DEF,
     FUNCTION,
 
-    TYPE_LITERAL,
-    FUNCTION_TYPE,
+    NAME,
+    DOT_OP,
+    CALL,
+    TYPE_CONSTRUCT,
 
     LITERAL,
-    NAME,
-    TYPE_CONSTRUCT,
-    LAMBDA,
-    CALL,
     UNARY_OP,
     BINARY_OP,
-    DOT_OP,
+    LAMBDA,
 }
 
 export abstract class ASTNode {
@@ -327,45 +407,32 @@ export abstract class ASTNode {
 export class ASTProgram extends ASTNode {
     nodeName = NodeType.PROGRAM;
 
-    statements!: ASTStatement[];
-}
+    operatorDefinitions!: ASTOperatorDefinition[];
 
-export type ASTReference = ASTName | ASTDotOperator | ASTCall;
+    withModules!: ASTExpression[];
+    declarations!: ASTDeclaration[];
+}
 
 export class ASTBlock extends ASTNode {
     nodeName = NodeType.BLOCK;
 
-    withModules!: ASTReference[];
+    scope!: Scope; // The scope of the block
+
+    withModules!: ASTExpression[];
     statements!: ASTStatement[];
 }
 
 //Statements
 export type ASTStatement =
-    | ASTDeclaration
     | ASTIf
     | ASTWhile
     | ASTFor
     | ASTBreak
     | ASTContinue
     | ASTReturn
+    | ASTOperatorDefinition
+    | ASTDeclaration
     | ASTExpression;
-
-export class ASTDeclaration extends ASTNode {
-    nodeName = NodeType.DECLARATION;
-
-    lvalue!: ASTReference; //Reference to the variable being changed
-
-    // optional (but at least 1 needed)
-    type!: ASTType;
-    rvalue!: ASTExpression;
-}
-
-//Used in type definition, type constructor, and function parameters
-export class ASTSingleVarDeclaration extends ASTDeclaration {
-    nodeName = NodeType.SINGLE_DECLARATION;
-
-    lvalue!: ASTName; //Reference to the variable being changed
-}
 
 export class ASTIf extends ASTNode {
     nodeName = NodeType.IF;
@@ -385,8 +452,8 @@ export class ASTWhile extends ASTNode {
 export class ASTFor extends ASTNode {
     nodeName = NodeType.FOR;
 
-    itemParamDec!: ASTName;
-    indexParamDec!: ASTName;
+    itemParamDec!: ASTDeclaration;
+    indexParamDec!: ASTDeclaration;
 
     //In statement
     iterableName!: ASTExpression;
@@ -409,52 +476,74 @@ export class ASTReturn extends ASTNode {
     returnValue!: ASTExpression;
 }
 
+export class ASTOperatorDefinition extends ASTNode {
+    nodeName = NodeType.OPERATOR_DEF;
+
+    operatorName!: Token;
+    functionOverload!: ASTFunction;
+}
+
+export type DeclarationAccessToken =
+    | TokenType.MUTABLE_ASSIGNMENT_TKN
+    | TokenType.IMMUTABLE_ASSIGNMENT_TKN
+    | TokenType.CONST_ASSIGNMENT_TKN;
+
+export class ASTDeclaration extends ASTNode {
+    nodeName = NodeType.DECLARATION;
+
+    inScope!: Scope; // Scope that the declaration is in
+
+    lvalue!: ASTExpression; //Reference to the variable being changed
+    type!: ASTExpression;
+
+    resolvedType!: ASTStrictType; // For example, a type of "\(getNumType()) -> string" would have a resolve of "\(num) -> string"
+
+    isAssignment = false;
+    accessAssignment!: DeclarationAccessToken; //All variables are immutable by default
+    rvalue!: ASTExpression;
+}
+
 //Expressions
 export type ASTExpression =
+    | ASTAccessCast
+    | ASTTypeLiteral
+    | ASTFunctionType
     | ASTModule
     | ASTTypeDefinition
     | ASTFunction
-    | ASTTypeLiteral
-    | ASTFunctionType
-    | ASTLiteral
     | ASTName
-    | ASTTypeConstruction
-    | ASTLambda
+    | ASTDotOperator
     | ASTCall
+    | ASTTypeConstruction
+    | ASTLiteral
     | ASTUnaryOperator
     | ASTBinaryOperator
-    | ASTDotOperator;
+    | ASTLambda;
 
-export class ASTModule extends ASTNode {
-    nodeName = NodeType.MODULE;
+export type ASTStrictType = ASTAccessCast | ASTTypeLiteral | ASTFunctionType | ASTName | ASTDotOperator;
 
-    withModules!: ASTReference[];
-    declarations!: ASTDeclaration[];
+export type AccessCastToken = TokenType.MUT_CAST_TKN | TokenType.CONST_CAST_TKN;
+
+export class ASTAccessCast extends ASTNode {
+    nodeName = NodeType.ACCESS_CAST;
+
+    accessType!: AccessCastToken;
+    castedType!: ASTExpression;
 }
 
-export class ASTTypeDefinition extends ASTNode {
-    nodeName = NodeType.TYPE_DEF;
-
-    withModules!: ASTReference[];
-    declarations!: ASTSingleVarDeclaration[];
-}
-
-export class ASTFunction extends ASTNode {
-    nodeName = NodeType.FUNCTION;
-
-    paramDeclaration!: ASTSingleVarDeclaration[];
-    returnType!: ASTExpression;
-    block!: ASTBlock;
-}
-
-//Types
-export type ASTType = ASTReference | ASTTypeLiteral | ASTFunctionType;
+export type TypeLiteralToken =
+    | TokenType.MODULE_TKN
+    | TokenType.TYPE_TKN
+    | TokenType.NUM_TYPE_TKN
+    | TokenType.STRING_TYPE_TKN
+    | TokenType.BOOL_TYPE_TKN
+    | TokenType.VOID_TYPE_TKN;
 
 export class ASTTypeLiteral extends ASTNode {
     nodeName = NodeType.TYPE_LITERAL;
 
     //num, string, bool, void
-    type!: Token;
+    type!: TypeLiteralToken;
 }
 
 export class ASTFunctionType extends ASTNode {
@@ -464,11 +553,26 @@ export class ASTFunctionType extends ASTNode {
     outType!: ASTExpression; // num, string, boolean, vector, Particle, Astrology.Star etc...
 }
 
-export class ASTLiteral extends ASTNode {
-    nodeName = NodeType.LITERAL;
+export class ASTModule extends ASTNode {
+    nodeName = NodeType.MODULE;
 
-    // 67, "this is a literal", true
-    value!: Token;
+    withModules!: ASTExpression[];
+    declarations!: ASTDeclaration[];
+}
+
+export class ASTTypeDefinition extends ASTNode {
+    nodeName = NodeType.TYPE_DEF;
+
+    withModules!: ASTExpression[];
+    declarations!: ASTDeclaration[];
+}
+
+export class ASTFunction extends ASTNode {
+    nodeName = NodeType.FUNCTION;
+
+    paramDeclaration!: ASTDeclaration[];
+    returnType!: ASTExpression;
+    block!: ASTBlock;
 }
 
 export class ASTName extends ASTNode {
@@ -477,18 +581,11 @@ export class ASTName extends ASTNode {
     refName!: string;
 }
 
-export class ASTTypeConstruction extends ASTNode {
-    nodeName = NodeType.TYPE_CONSTRUCT;
+export class ASTDotOperator extends ASTNode {
+    nodeName = NodeType.DOT_OP;
 
-    typeRef!: ASTExpression;
-    assignments!: ASTSingleVarDeclaration[];
-}
-
-export class ASTLambda extends ASTNode {
-    nodeName = NodeType.LAMBDA;
-
-    parameters!: ASTName[];
-    expression!: ASTExpression;
+    rootValue!: ASTExpression;
+    memberValue!: ASTExpression;
 }
 
 export class ASTCall extends ASTNode {
@@ -496,6 +593,25 @@ export class ASTCall extends ASTNode {
 
     functionNameRef!: ASTExpression; //Function name identifier
     givenParams!: ASTExpression[];
+}
+
+export class ASTTypeConstruction extends ASTNode {
+    nodeName = NodeType.TYPE_CONSTRUCT;
+
+    typeRef!: ASTExpression;
+    assignments!: {
+        locToken: Token;
+
+        lvalue: ASTName;
+        rvalue: ASTExpression;
+    }[]; // Constrained to ASTName lvalues, guaranteed to be unique assignments
+}
+
+export class ASTLiteral extends ASTNode {
+    nodeName = NodeType.LITERAL;
+
+    // 67, "this is a literal", true
+    value!: Token;
 }
 
 export class ASTUnaryOperator extends ASTNode {
@@ -515,9 +631,9 @@ export class ASTBinaryOperator extends ASTNode {
     rvalue!: ASTExpression;
 }
 
-export class ASTDotOperator extends ASTNode {
-    nodeName = NodeType.DOT_OP;
+export class ASTLambda extends ASTNode {
+    nodeName = NodeType.LAMBDA;
 
-    rootValue!: ASTExpression;
-    memberValue!: ASTExpression;
+    parameters!: ASTName[];
+    expression!: ASTExpression;
 }

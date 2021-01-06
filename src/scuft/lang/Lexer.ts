@@ -1,5 +1,5 @@
 import { ErrorHandler } from "./ErrorHandler";
-import { Token, TokenType } from "./Token";
+import { Token, TokenType, tokenToStr } from "./Token";
 
 export default class Lexer {
     private readonly err: ErrorHandler;
@@ -83,7 +83,7 @@ export default class Lexer {
                     case ">":
                         return this.grabToken("=>", TokenType.CONST_ASSIGNMENT_TKN);
                     default:
-                        return this.grabToken("=", TokenType.ASSIGNMENT_TKN);
+                        return this.grabToken("=", TokenType.IMMUTABLE_ASSIGNMENT_TKN);
                 }
 
             // Blocks
@@ -105,23 +105,19 @@ export default class Lexer {
                 if (this.getNextChar() === "|") {
                     return this.grabToken("||", TokenType.COND_OR_TKN);
                 } else {
-                    return this.grabToken("|", TokenType.OP_BAR_TKN);
+                    return this.grabToken("|", TokenType.BIN_OR_TKN);
                 }
             case "&":
                 if (this.getNextChar() === "&") {
                     return this.grabToken("&&", TokenType.COND_AND_TKN);
                 } else {
-                    let ampersand = this.grabToken("&" + this.getNextChar(), TokenType.UNKNOWN_TKN);
-                    ampersand.value = "&";
-                    return ampersand;
+                    return this.grabToken("&", TokenType.BIN_AND_TKN);
                 }
             case "$":
                 if (this.getNextChar() === "$") {
                     return this.grabToken("$$", TokenType.COND_XOR_TKN);
                 } else {
-                    let dollar = this.grabToken("$" + this.getNextChar(), TokenType.UNKNOWN_TKN);
-                    dollar.value = "$";
-                    return this.grabToken("$", TokenType.UNKNOWN_TKN);
+                    return this.grabToken("$", TokenType.BIN_XOR_TKN);
                 }
             case "!":
                 if (this.getNextChar() === "=") {
@@ -223,11 +219,31 @@ export default class Lexer {
     }
     private grabNumericLiteral(): Token {
         let stringValue = "";
+        let base = 10;
+        if (this.getCurChar() === "0") {
+            switch (this.getNextChar()) {
+                case "b":
+                    base = 2;
+                    stringValue = "0b";
+                    this.incrementCurIndex(2);
+                    break;
+                case "o":
+                    base = 8;
+                    stringValue = "0o";
+                    this.incrementCurIndex(2);
+                    break;
+                case "x":
+                    base = 16;
+                    stringValue = "0x";
+                    this.incrementCurIndex(2);
+                    break;
+            }
+        }
         let number = 0;
         let ch = this.getCurChar();
         let point = false;
         let divideBy = 1;
-        while (Lexer.isNumber(ch) || ch === ".") {
+        while (Lexer.isNumber(ch) || ch === "." || (base == 16 && Lexer.isHexLetter(ch))) {
             stringValue += ch;
             if (ch !== "_") {
                 if (ch === ".") {
@@ -244,8 +260,13 @@ export default class Lexer {
                         );
                     }
                 }
-                number = 10 * number + parseInt(ch);
-                if (point) divideBy *= 10;
+                let val = Lexer.toInt(ch);
+                if (val < base) {
+                    number = base * number + val;
+                    if (point) divideBy = divideBy * base;
+                } else {
+                    this.err.atPoint_PANIC(ch + " is an invalid digit symbol in base " + base, this.curLine, this.curC);
+                }
             }
             this.incrementCurIndex(1);
             ch = this.getCurChar();
@@ -261,7 +282,7 @@ export default class Lexer {
         let str = "";
         let ch = this.getCurChar();
         let escapeChar = false;
-        while (escapeChar || ch !== '"') {
+        while (this.curIndex < this.sourceCode.length && ch !== "\n" && (escapeChar || ch !== '"')) {
             if (!escapeChar || ch === '"') {
                 str += ch;
             }
@@ -272,6 +293,9 @@ export default class Lexer {
             }
             this.incrementCurIndex(1);
             ch = this.getCurChar();
+        }
+        if (this.curIndex >= this.sourceCode.length || ch === "\n") {
+            this.err.atPoint_PANIC("Unterminated string literal", this.curLine, this.curC - str.length - 1);
         }
         this.grabToken('"', TokenType.DOUBLE_QUOTE_TKN);
         let tkn = this.makeToken('"' + str + '"', TokenType.STRING_LITERAL_TKN);
@@ -324,14 +348,8 @@ export default class Lexer {
                 return this.makeToken(str, TokenType.BREAK_TKN);
             case "continue":
                 return this.makeToken(str, TokenType.CONTINUE_TKN);
-
-            //Bitwise Operators
-            case "or":
-                return this.makeToken(str, TokenType.BIN_OR_TKN);
-            case "and":
-                return this.makeToken(str, TokenType.BIN_AND_TKN);
-            case "xor":
-                return this.makeToken(str, TokenType.BIN_XOR_TKN);
+            case "operator":
+                return this.makeToken(str, TokenType.OPERATOR_TKN);
 
             //Conditionals
             case "true":
@@ -340,6 +358,10 @@ export default class Lexer {
                 return this.makeToken(str, TokenType.COND_FALSE_TKN);
 
             //Types
+            case "mut":
+                return this.makeToken(str, TokenType.MUT_CAST_TKN);
+            case "const":
+                return this.makeToken(str, TokenType.CONST_CAST_TKN);
             case "void":
                 return this.makeToken(str, TokenType.VOID_TYPE_TKN);
             case "num":
@@ -391,5 +413,18 @@ export default class Lexer {
     static isNumber(ch: string): boolean {
         let n = ch.charCodeAt(0);
         return (n >= 48 && n <= 57) || ch === "_";
+    }
+    static isHexLetter(ch: string): boolean {
+        let n = ch.charCodeAt(0);
+        return (n >= 65 && n < 71) || (n >= 97 && n < 103);
+    }
+    static toInt(ch: string): number {
+        if (Lexer.isNumber(ch)) return parseInt(ch);
+        if (Lexer.isHexLetter(ch)) {
+            let val = ch.charCodeAt(0) - 65 + 10;
+            if (val <= 15) return val;
+            return val - (97 - 65);
+        }
+        throw "String is not assignable to any int value";
     }
 }
