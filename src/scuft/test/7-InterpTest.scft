@@ -1,0 +1,22 @@
+/*
+Interpreter tests
+*/
+
+main = () -> num{
+    val => 10;
+    x = 3 / 6 - val * 0xFF;
+    for i in [val, "random") {
+        return 1;
+    }
+    return x;
+}
+getRandNum = () -> num {
+    return -123;
+}
+doThing = () {
+    return;
+}
+
+thing = dec;
+dec = 6;
+

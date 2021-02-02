@@ -6,15 +6,259 @@ per: rand2 = 5;
 
 // constPart: const mut mut string => b1;
 
-a1 => "test";
-b1: const string => a1;
-c1: bool; 
 
-a => 3;
-b ~= a; 
+// test = () {
+//     test1 = () {
+//         dup ~= 5;
+//         dup ~= 11;
+//         test2 = () {
+//             dup ~= 2;
+//             dup ~= 3;
+//         }
+//         dup ~= 8;
+//     }
+//     dup ~= 10;
+// }
+// dup ~= 40;
 
+// constVal => 5;
+// Point => type {
+//     x => constVal;
+//     doStuff = () {
+//         //y ~= 3;
+//         thing => constVal; //Should be illegal
+//     }
+// }
+// y: mut num;
+
+/*
+print = (a: bool) {
+
+}
+ModTest => module {
+    other = print;
+    print = (b: num) {
+
+    }
+    print = (c: string) {
+
+    }
+}*/
+
+/*
+thing ~= 3;
+ModTest => module {
+    thing ~= 20;
+    val => 4;
+    Point => type {
+        otherPoint: Point;
+        doStuff = () {
+            thing = val;
+        }
+    }
+}*/
+
+// Point => type {
+//     str => string;
+//     great => "great";
+
+//     otherPoint = stupidPoint.{ };//stuff <- great3 };
+
+//     stupidPoint: const type => Point;
+// }
+
+// operator + => (a1: string, b1: num) -> string {
+
+// }
+
+// operator + => (a1: string, b1: string) -> string {
+
+// }
+
+// Number => type {
+//     val = 3;
+// }
+// thing = (a ~= 5, b: num) -> Number {
+//     if true == false {
+//         numThing = Number.{};
+//         //test => 3;
+//         return numThing;
+//     } else {
+//         while false {
+//             return Number.{};
+//         }   
+//         if false {
+//             return Number.{};
+//         } else if true {
+//             return Number.{};
+//         } else {
+//             return Number.{};
+//         }
+//     }
+// }
+
+// str => string;
+// func = (flag: bool) -> num { //Throws an error because not all return branches are accounted for
+//     a: mut num;
+//     if !flag {
+//         b: mut 3;
+//         return 62;
+//     } else if flag {
+//         a ~= 3;
+//     } else {
+//         return 4;
+//     }
+//     return a; //Adding this line would resolve the error;
+// }
+// thing = () {
+//     a ~= 4;
+//     b = 5 + a;
+//     while true {
+//         if true {
+//             return;
+//         } else if true {
+//             return;
+//         } else {
+//         }
+//         d = 6;
+//     }
+//     d = 5;
+// }
+
+testMod => module {
+    other => "ASDF";
+    thing => module {
+        val = 2;
+        otherMod => module {
+            val = 5;
+            doStuff => (a: num) -> string {
+                return "cool";
+            }
+            Particle => type {
+                x: string;
+                y: num;
+            }
+        }
+    }
+}
+
+main = () {
+    ref => testMod.thing.otherMod;
+    thing => ref.Particle.{ x <- 10, y <- 3 };
+    stuff => thing.x;
+}
+
+/*
+other => module {
+
+} + 3;
+*/
+// constb => true;
+// b = true;
+
+// constNum => 32_767;
+// number = 0;
+
+// str => string;
+// thingStr: mut str  ~= "yay";
+
+// func => () {
+//     thing = constNum;
+//     test: mut num ~= thing - 1;
+//     boolb ~= false;
+//     testStr: string;
+//     if constb == constb $$ false {
+//         test ~= test + constNum;
+//         test ~= test * constNum;
+//         test ~= test - constNum;
+//         if boolb != constb {
+//             testStr = constInFunc; 
+//         } else { 
+//             testStr = "10";
+//         }
+//     } else if !constb {
+//         fourty = 0x40;
+//         testStr = "asdf";
+//     } else {
+//         thinger = thing;
+//     }
+//     constInFunc => "rad";
+
+//     pureFuncInPureFunc => () {
+//         stuff: str = "asdf";
+//         // thing = 2; // This line should throw an error
+//     }
+// }
+
+
+
+// PointFactor => module {
+//     Point => type {
+//         id: num;
+//         otherPoint: Point;
+//     }
+//     pointCounter ~= 0;
+//     newPoint => () -> Point {
+//         newP = Point.{ id <- pointCounter };
+//         pointCounter = pointCounter + 1;
+//         return newP;
+//     }
+// }
+// getStuff = newP();
+
+
+// PointFactory => module {
+//     Point => type {
+//         id: num;
+//         otherPoint: mut Point;
+//         test: mut num;
+//     }
+//     pointCounter ~= 0;
+//     newPoint => () -> Point {
+//         newP = Point.{ id <- pointCounter };
+//         pointCounter ~= b + 1;
+//         b => 4;
+//         //return newP;
+//     }
+// }
+//getStuff = newP();
+
+
+// a1 => "test";
+// b1: const const string => a1;
+// c1: bool; 
+
+
+// a: const const string ~= 3 + 2;// => 3;
+
+// c => b - a + 5;
+// b => 9 + 3; 
+
+/*
+mutVal ~= 4;
+main = () {
+    test = mutVal + 5;
+    mutVal ~= 3;
+}*/
+
+// constVal => 3;
+// Test => module {
+//     Point => type {
+//         x: num;
+//         y => constVal;
+//         z = 4;// thing;
+//         doThing = () {
+//             sTest => test;
+//         }
+//         p: Point = Point.{};
+//     }
+//     test => constVal + 5;
+//     //test ~= 3;
+// }
+
+/*
 Sky => type {
-    //star: Star;
+    // star: Star;
     moreSky: Sky;
     starCount: mut bool ~= true;  
 
@@ -26,13 +270,13 @@ Sky => type {
 }
 
 Star => type {
-    moreTwinkle = () {
+    moreTwinkle = (a: num, b: bool) -> num {
         twinkle ~= false;
     }
     twinkle ~= true;
     index: num;
     otherStar: Star;
-}
+}*/
 
 
 /*

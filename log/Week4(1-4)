@@ -1,0 +1,574 @@
+1/4/21 (Monday)
+    Tasks
+    - Remove absolute value bars 
+    - Refactor the function overloading in scope to make parsing errors nicer
+    - Implement operator keyword for operator overloading 
+    - Fix the cycle checker to work for the following case: d = g; g = f; f = g;
+        - Similar issue is seen with: Particle = type { point: Particle; }
+    - Create error handling function to print recurse stacks
+    - Handle mismatch in assignment types in the type checker: For example: a: ~num => 3;  b: getConstType() ~= 6;
+    - Currently, function overloads are stored as ASTDeclarations. Maybe change this to be cleaner/memory efficient
+
+    Ideas
+        Operator overloads are allowed in modules
+            Astrology = module {
+                Particle = type {
+
+                }
+                operator * => () {
+
+                }
+            }
+
+            with Astrology;
+            p = Particle.{} + Particle.{};
+
+    Small Tasks
+    - Fixed the cycle checker to work for "typeOfExpression"
+    - Fixed the scope with function overloading stuff. Scope now stores a map from variables (strings) to a list of declarations
+    - Implemented preliminary type checking for blocks (only checks for statements right now)
+    - Implemented error checking for mutable, immutable and const assignment
+        - Defer a lot of declaration error checking until type checking
+        - "Variable reassignment is not allowed in global scope"
+        - "Module can't contain variable reassignments"/"Duplicate variable declaration"
+        - "Type definition can't contain variable reassignments"/"Duplicate variable declaration"
+    - Recursive type definitions now work (scopes of type definitions store a reference to the type definition)
+        ListItem = type {
+            value: num;
+            nextItem: ListItem;
+        }
+    - Error is throw with recursive type construction
+        ListItem = type {
+            value: num;
+            nextItem: ListItem = ListItem.{}; //An error is throw because of infinite recursion
+        }
+    - Changed bitwise operators to "|", "&" and "$" for bitwise "or", "and" and "xor" respectively
+
+    Done
+    - ASTCall mostly works
+        - Get function Signature / Declaration does its job but may require refactoring later
+    - Operator overloading now type checks using operators in global scope and generalized default operator case
+
+1/5/21 (Tuesday)
+    Tasks
+    - Refactoring everything to line up with the organization in typechecking
+    - Make operator keyword in lexer store the name of the identifier in the token: "operator newThing" is stored as a token
+    - Fix issue where if an operator overload is not used, it won't be type checked
+    - Create better error output for mismatched types in binary operator: a = 3 + "String" (where add operator is not overloaded)
+        - Make an error handling method to output "wholeNode"
+    - Implement the checking for mutable, immutable and constant cases
+    - Implement scope stuff for "with" keyword
+    - Dot Operator Case (Mayur)
+    - Function typechecking (in OngoingTODO) 
+        - Pure function detection
+        - Return case (possibly also handle checking branches?)
+        - Declaration case (make sure not already defined)
+    - Start basic evaluation 
+        - Use this to implement resolveType for metaprogramming cases
+    - Implement ordered immutable declarations
+        - if () {
+            a = e; // this should fail
+          }
+          e = 3;
+
+    Ideas
+        Changes to const and mutable assignment syntax
+            a: const num;
+            func => (a: mut num ~= 3, b: const Particle) -> const string {
+                a += 5;
+                output: const string => a + b.x;
+                return output;
+            }
+        Type unions (Kind of hard to implement)
+            a: mut num | mut string;
+            a ~= 3;
+            a ~= "random";
+    Issues
+        Consider the following for overloaded functions
+            add = (a = 3, b = 6) -> num {
+                test2 => 2;
+            }
+
+            add = (a: string, b: string) -> string {
+
+            }
+
+            test = add;
+            test(3, 4);
+
+            //Should the following be allowed
+            testNum: \(num, num) -> num = add;
+            test(3, 4); //works
+            test("Thing", "other"); //throws an error
+        Consider the following for function overloads
+            add: num;
+            add = (a:num, b:num) -> num {
+                return a + b;
+            }
+
+    Small Tasks
+    - Fixed lexer/error handler error where error indicators were of the wrong length
+    - Implemented access casts for types to const and mut
+
+    Done
+    - Dealt with scope stuff for declarations
+        - Ensured that mutable and immutable variables are declared in ordered
+        - Developed mutual understanding of what the declared variable was among all assignments which referenced it
+    - Dealt with mutable and constant assignment issues. 
+        - For example: casting the "5" in "a: const num = 5" to "const num"
+        -            : casting the "true" in "b: mut bool = true" to "mut bool"
+    - Caught a lot of bugs and did error handling for specific edge cases
+    - Wrote down beginnings of Final Test Code
+        - Discussed how the vector syntax may look in the future. 
+
+1/6/21 (Wednesday)
+    Tasks
+    - Refactor stuff (it's pretty ugly)
+    - Detect pure functions (isConstant function)
+    - Fixing function overloading to work with assignment
+        add = () {}
+        add = (a: num) {}
+        func = add;
+        func();
+    - Constant folding on everything
+        a: getNum() = 3 + 60; is replaced with a: num = 63;
+        - Related to constant function evaluation
+        - Related to dot operators/references
+    - Return statements/branch checking need to be typechecked
+    - With statements and discuss more about how they work with other things
+    - All statements: if/elseif/while/for        
+
+    Ideas 
+        Translating operators in modules into global scope
+            Math => module {
+                Point => type {
+                    x: num;
+                    y: num;
+                }
+                operator + => (a: Point, b: Point) -> Point {
+                    ...
+                }
+                print => (a: Point) -> string {
+                    ...
+                }
+            }
+
+            p0 = Math.Point.{};
+            p1 = Math.Point.{};
+            p2 = p0 + p1;
+            str = Math.print(p0);
+
+            // Operator gets translated to the following:
+            operator + => (a: Math.Point, b: Math.Point) -> Math.Point {
+                ...
+            }
+            Math => module {
+                Point => type {
+                    x: num;
+                    y: num;
+                }
+                print => (a: Point) -> string {
+                    ...
+                }
+            }
+        Switch pattern matching
+            main = () {
+                out = switch x {
+                        32 -> {
+                            a: num = 3;
+                            return 2 + a;
+                        }
+                        45 || 64 -> return 3;
+                        x > 100 ->  return 4;
+                }
+            }
+
+        Enums
+
+            Color => enum {
+                RED => 1,
+                BLUE,        //2
+                GREEN => 12
+                ORANGE,      //13
+            }
+
+            favoriteColor: Color = RED;
+
+        Null reference alternatives
+            add (?, 4);
+            add = (a: num, b = 3) -> num {
+
+            }
+
+            add = (a: maybe const num, b => 3) -> maybe const num {
+                x = 3423;
+
+                result ~= b;
+                switch a.fold {
+                    some -> {
+                        result += a.some;
+                        return;
+                    }
+                    none -> {
+                        result = 0;
+                        return;
+                    }
+                }
+                return b + 1;
+            }
+
+            
+            Maybe = type {
+                t: type;
+                value: t;
+                fold = () -> t | nothing {
+
+                }
+            }
+            
+            Maybe.{ t <- num}
+
+            class Maybe<T> {
+                private T value;
+            }
+
+            Maybe<int> thingy = new Maybe<int>();
+            thingy.value = 3;
+        
+        Polymorphism
+            print = (a: #T, b: T, c: #G) -> G {
+                if (a < b) {
+                    return c;
+                }
+            }
+            operator < => (a: string, b: string) -> bool {
+                return false;
+            }
+            print ("string", "asdf", 3);
+
+        For loop range (REVAMPED)
+            count = 3;
+            for i in_range [0, 8) {
+                count += count;
+            }
+
+        Compiler Directives (REVAMPED)
+            squarePlusOne = (x: num) <- 3 * x + 4;
+
+            squarePlusOne' = @derive x squarePlusOne
+
+    Small Tasks
+    - Built simple syntax highling extension for vscode
+    - Added new type "atWholeExpr" to make an indicator over an entire expression
+    - Refactored the "searchVarDeclaration" function to be more generalized and usable throughout typechecker
+    - Modules are now type checked
+    - Operators make const values mutable.
+        a => 3; 
+        b => 5;
+        // The type of (a + b) is mut num 
+    - Undid the last thing: (a + b) is num, not mut num 
+    - Removed the token creation helper functions in AST and created single helper function in Token (Token.fromType())
+    - Cleaned up scope to contain less functions
+    - Claim: if a scope B has a smaller scopeID than scope A then scope B can't be inside scope A
+        // ScopeID is a global counter. This means that deeper scopes will tend to have larger scopeID's
+
+        thing ~= 4 //In scopeID 0
+        other => function { 
+            // In scopeID 1
+            stuff => function { 
+                // In scopeID 2 
+            }
+        }
+        maybePure => function {
+            value = thing; //In scopeID 3
+        }
+
+        // If we search for variable "thing", we note that we find the declaration in scopeID 0. Because the scopeID 
+        // of the discovered variable is smaller than the scopeID of the "test" function block scope, we know for 
+        // sure that the declaration for "thing" can't be inside scope A and so value is doing "impure" things.
+        // Thus, the test function is not a pure function. (This is super super useful)
+
+1/7/21 (Thursday)
+    Tasks
+    - Make sure that the following is not allowed:
+        Container = type {
+            value: mut num;
+        }
+        container = Container.{
+            value <- 5
+        }
+        //This line should throw an error because continer is immutable
+        container.value = 5; 
+    - Change "typeOfExpression" and "isTypeEqual" to see if types castable to each other
+        For num, string and bool:
+        - const num, num and mut num can be used in the expression of a mut num variable
+        - const num, num and mut num can be used in the expression of a num variable
+        - num and mut num CAN'T be used in the expression of const num variable
+        For other types:
+            pMut ~= Point.{}
+            p = Point.{}
+            pConst => Point.{}
+
+            p2Mut: mut Point ~= pMut;
+            // p2Mut: Point = p; This is invalid because this allows one to modify p
+            // p2Mut: mut Point ~= pConst; This is invalid because this allows one to modify pConst
+            
+            p2: Point = pMut; //Cast mutable point to an immutable one
+            p2: Point = p;
+            // p2: Point = pConst; This is invalid for similar reasons above
+            
+            // p2Const: const Point => pMut; This is invalid because const needs to be known at comp time 
+            // p2Const: const Point => p; This is invalid for same reason above 
+            p2Const: const Point => pConst;    
+    - Fix module and type definition to ONLY allow constant variables to be used from outer scope
+        immutVal = 4;
+        constVal => 4;
+        Star => type {
+            thing = constVal; //constVal should be accessible from here
+            // otherThing = immutVal; //immutVal should not be accessible from here
+        }
+    - Create "checkForFunction" in the parser using a bunch of lookahead to test whether a function exists
+        - Allows for functions to be defined like this: print = (a: num) {} instead of this a = \(a: num) {}
+        - Returns an ASTFunction if it suceeds or undefined if it fails 
+        - Should now throw an error if it fails but instead should try parsing for an expression
+    - Need better check for testing whether a scope is within a module or type definition 
+        - Current test is to just check whether or not the scope is unordered
+    - Consider removing ASTStrictType
+
+    Ideas
+        Concept of "static" through constant variables/functions
+            // Important to note that types can hold functions but the functions can't reference themselves:
+            Point => type {
+                constVal => 3;
+                x: num;
+                y: num;
+                // A single Point instance does not own this function because it is constant
+                add => (pointA: Point, pointB: Point) -> Point {
+                    return Point.{ x <- pointA.x + pointB.x, y <- pointA.y + pointB.y };
+                }
+                doStuffToSelf = () {
+                    //This line should be invalid since the function can't reference non-constant properties within itself 
+                    //xTemp = x;
+                    xTemp = constVal; //This is allowed since constVal is constant
+                }
+            }
+
+            p0 = Point.{ x <- 3, y <- 4 };
+            p1 = Point.{ x <- 2, y <- 1 };
+
+            otherPoint ~= Point.{}.add(p0, p1); // This line is valid but unnecessary 
+            otherPoint ~= Point.add(p0, p1); // This is a better way to reference const values
+
+            thing = Point.constVal; //This line is valid
+        Fixing the distinction between "pass by value" and "pass by reference"
+            Point => type {
+                id: num;
+            }
+            val ~= 3; 
+            // newP = Point.{ id <- val }; // This throws an error because val is mut num but id is num
+
+            newP = Point.{ id <- @copy(val) }; // Copy is implicitly inserted. Turns val into a mutable type
+
+            //Hypothetical copy function signature, Note: this doesn't actually exist
+            @copy => (a: #T) -> mut T {...}
+        Default Values
+            Point = type {
+                x: num; //x is default initialized to 0
+                y: num;
+                val: string; //val has no default value => throws error
+                blinking: bool; //blinking is default initialized to false
+            }
+    
+    Small Tasks
+    - Fixed the module/type definition scope access stuff to work as expected in specifications
+        - Cleaned up scope class to get this to work
+    - Access casting issues for variable access is more or less fixed
+        constVal => 3;
+        test = constVal; //constVal gets translated into a mut num which then gets converted into an immutable num
+        
+        // Errors are now caught for cast const or immutable instances to mutable variables
+        constParticle => Particle.{};
+        other ~= constParticle; //Throws an error
+    - Better error messages for accessing immutable or mutable variables outside the scope of modules and type definitions
+        immutVal = 10;
+        constVal => 4;
+        Point => type {
+            x: num = constVal; //Finds constVal outside of type definition because constVal is constant
+
+            doStuff = () {
+                thing = () {
+                    // y = immutVal; //Throws an error because type definitions are inward scoping
+                }
+            }
+        }
+        // TODO make this better by actually searching for the unknown variable
+    
+    Done
+    - Started merg_ing searchVariable and searchFunction
+    - Implemented most of function purity testing
+    - Discussed default initialization
+    - Started type checking functions with plans to store return statements
+    - Got a good theme for Mayur and added extension to color Scuft code
+
+1/8/21 (Friday)
+    Tasks
+    - Refactor the SH*T out of everything (merge assertPureFunction with assertConstantExpression functions)
+    - Store return statement in blocks to keep track of control flow for function type checking
+        - Only 1 return needed per block, since blocks will recursively store each other
+        - Throw error / warning if there are more than one return (or if there are statements after)
+    - Parse and lex switch and enum cases
+        - Discuss syntax for a switch statement 
+        - ENUM should be ready for implementation
+        - MAYBE consider how to "break" out of switch statements
+            val = switch x {
+                3 | 5  :: 10,
+                6      :: 20,
+                x > 10 :: 100 // channel token
+            }
+    - Continue and break have to be checked and made sure they are in loops 
+        - Probably a parser thing to check 
+    - Fix searching functions
+        - have to adjust between variable repetition (badd) and function overloading (cool)    
+    - Make sure that this doesn't break stuff
+        //Note that the "return type" can be interpretted as a "type definition" (This is obviously bad)
+        getType = () -> type {
+            ...
+        }
+    - Maybe consider splitting up typeCheckDeclaration into two parts: resolveTypeOfDeclaration() and typeCheckDeclaration()
+
+    Issue
+        Type construction recursion uncaught
+            //Type checker use to catch the bad recursion here but it now no longer works
+            ListItem => type {
+                value: num;
+                nextItem = ListItem.{}; // Can't recursively create a type like this
+            }
+            newList = ListItem.{ value <- 3 };
+            
+            //This is the "correct" soultion
+            ListItem => type {
+                value: num;
+                nextItem: ListItem;
+            }
+            newList = ListItem.{ value <- 3, nextItem <- ListItem.{} };
+
+    Small Tasks
+    - Created a "getConstExpression" function and worked on refactoring everything around this idea
+    - Const variable substitutions now work: (where str => string; and a => "aaa") b: str => a; now translates to b: string => "aaa";  
+    - A lot of bug testing and filling in missing error messages
+
+1/9/21 (Saturday)
+    Tasks
+    - Clean up TypeChecker stuff/Prepare for dot operators and const function evaluation
+        - Use functions from new class "Interpreter" to evaluate const function
+    - Discuss the removal of default function parameters?
+    - Fix the == operator to work for numbers, booleans and strings
+    - Comprehensively give "endToken"s to all ASTNodes
+
+    Issues
+        Recursive type
+            //b: const b => num; //This already throws an errors
+            b: const typeof b => num; //Assumed that this will probably go into an infinite type checking loop
+        Recursive module
+            test => module {
+                stuff = 20;
+                other => test;
+            } //This currently goes into an infinite loop (js error)
+        Remove with statement
+            test => module {
+                importInnerVar ~= 5;
+            }
+
+            func = () {
+                with test;
+
+                // Naive programmer thinks that they're creating a new variable
+                // but they're actually modifying the module variable. Throw error because name conflict? 
+                importInnerVar ~= 4; 
+            }
+
+    Small Tasks
+    - Fixed issues with recursive type definitions. A lot of other small bugs
+    - Removed lambdas completely in favor of function defs 
+        value = ((x: num, y: num) -> num return x + y)(3, 4); // value = 7
+    - Fixed lexer bug where end token would appear after comments:
+        value = 3 + 6 // Original end token
+                                           ^
+        value = 3 + 6 // Improved end token
+                     ^
+    - Modules are no parsed as if they were expressions
+        - Note that type definitions are the only expression type which isn't accounted for by parse expression
+    - Throw error when statements are written after a return, continue or break statement.
+        func = () -> num {
+            return 43;
+            a = 4; //This line throws an error because it is unreachable
+        }
+    - Throw error when break and continue statements are used incorrectly
+        func = () {
+            while true {
+                stuff = () {
+                    break; //Throw an error because break is attempting to break out of function 
+                }
+                if true {
+                    break; // Valid
+                } else {
+                    return; // Valid
+                }
+                continue; // Valid
+            }
+            continue; //Throw an error because continue statement has no enclosing loop 
+        }
+    - Return statements are now type checked correctly
+        func = () -> mut Particle {
+            part = Particle.{};
+            return part; //This now throws an error because return type is mutable but return expr is immutable ref
+        }
+    - Control flow of function blocks is now checked and more checking to unreachable statements
+        func = (flag: bool) {
+            if flag {
+                return;
+            } else {
+                return;
+            }
+            unreachable = true; //Throws error because this statement is unreachable
+        }
+        func = (flag: bool) -> num { //Throws an error because not all return branches are accounted for
+            a ~= 10 ;
+            if !flag {
+                return 62;
+            } else if flag {
+                a ~= 3;
+            } else {
+                return 4;
+            }
+            // return a; //Adding this line would resolve the error;
+        }
+
+1/10/21 (Sunday)
+    Tasks
+    - Get dot operators to work
+    - Comprehensively replace all "err.atNode()" with "err.atWholeNode()". Whole node is objectively better
+        - Requires comprehensively adding end tokens to every ASTNode in parser
+
+    Issues
+        Functions within functions need to capture the variables they use
+            Value = type {
+                val: mut num;
+            }
+            getDoThing = () -> \(num) -> num {
+                randVar ~= Value.{ val <- 2 };
+                func = (a: num)- > num { //Closures need to store the variables they capture ( in this case, randVar needs to be stored somehwere)
+                    randVar.val ~= randVar.val + a;
+                    return randVar.val;
+                }
+                return func;
+            }
+            main = () {
+                func = getDoThing();
+                value ~= func(10); //value should be 12
+                value ~= func(20); //Should value be 32 or 22? (I'm assuming it should be 32)
+            }
+    
+    Small Tasks
+    - Fixed bug in lexer where things would crash if the input file was empty or completely commented out
+    - Dot operators FINALLY work for constant expressions

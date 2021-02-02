@@ -7,17 +7,13 @@ Check
     - (Typeof)
     - (metaprogramming)
 - 12/25/20
-    - (Constant Variable Ordering)
     - Make sure that the for loop error messages are working as expected
     - Verify error messages again in while loops of parseType, parseTypeConstruction, parseFunction, parseCall
 - 12/28/20
-    - Discuss constant and mutable types: a: |num => 3, b: ~num ~= otherVal;
     - Make rules/documentation
 - 12/30/20
     - Recheck all the parser errors, See 12/25/20
-    - Run time type constructon issue
     - (Null value)
-    - (Constant variable notation)
 - 12/31/20
     - Do a full scan of the lexer to check for unclosed block comments. Catch errors faster and smarter
     - Make dot operator reference errors more helpful.
@@ -26,39 +22,65 @@ Check
         - Output something like this: thing.other.stuff = 3;  
                                                   ^
 - 1/1/21
-    - (Constant functions must be pure)
-    - (Type expressions can only contain constants)
     - (Return short hand for single line functions)
 - 1/2/21
     - Detect valid functions by tracking return statements (May require control flow checking)
         - Create a "doesReturn" flag in ASTBlock to track whether the block fully returns in all cases 
-    - Work on cleaning up the type checking and merging the scope stuff with it
 1/3/21
     - (With statements are allowed in global scope)
     - (ADD_ADD, and related operators can be embedded in expressions)
     - (Function parameter defaults need to be mutable variables)
-    - Throw error if there is code after a break, continue or return statement 
 1/4/21
     - Create error handling function to print recurse stacks
-    - Handle mismatch in assignment types in the type checker: For example: a: ~num => 3;  b: getConstType() ~= 6;
 1/5/21
-    - Refactoring everything to line up with the organization in typechecking
     - Make operator keyword in lexer store the name of the identifier in the token: "operator newThing" is stored as a token
     - Fix issue where if an operator overload is not used, it won't be type checked
-    - Create better error output for mismatched types in binary operator: a = 3 + "String" (where add operator is not overloaded)
-        - Make an error handling method to output "wholeNode"
-    - Implement the checking for mutable, immutable and constant cases
-    - Implement scope stuff for "with" keyword
-    - Dot Operator Case (Mayur)
+    - Dot Operator Case
     - Function typechecking (in OngoingTODO) 
         - Pure function detection
         - Return case (possibly also handle checking branches?)
         - Declaration case (make sure not already defined)
-    - Start basic evaluation 
-        - Use this to implement resolveType for metaprogramming cases
-    - Implement ordered immutable declarations
-        - if () {
-            a = e; // this should fail
-          }
-          e = 3;
+1/6/21
+    - Fixing function overloading to work with assignment
+        add = () {}
+        add = (a: num) {}
+        func = add;
+        func();
+    - Constant folding on everything
+        a: getNum() = 3 + 60; is replaced with a: num = 63;
+        - Related to constant function evaluation
+        - Related to dot operators/references
+    - Return statements/branch checking need to be typechecked
+    - With statements and discuss more about how they work with other things
+    - All statements: if/elseif/while/for  
+    - (Translating operators in modules into global scope)
+    - (Switch pattern matching)
+    - (Enums)
+    - (Null refence alternatives)
+    - (Polymorphism)
+    - (For loops revamped)
+    - (Compiler directives revamped)
+1/7/21
+    - (Concept of "static" through constant variables/functions)
+1/8/21
+    - Parse and lex switch and enum cases
+        - Discuss syntax for a switch statement 
+        - ENUM should be ready for implementation
+        - MAYBE consider how to "break" out of switch statements
+            val = switch x {
+                3 | 5  :: 10,
+                6      :: 20,
+                x > 10 :: 100 // channel token
+            }
+    - Maybe consider splitting up typeCheckDeclaration into two parts: resolveTypeOfDeclaration() and typeCheckDeclaration()
+1/9/21
+    - Clean up TypeChecker stuff/Prepare for dot operators and const function evaluation
+        - Use functions from new class "Interpreter" to evaluate const function
+    - Discuss the removal of default function parameters?
+    - Fix the == operator to work for numbers, booleans and strings
+    - Comprehensively give "endToken"s to all ASTNodes
+    - (Recursive types)
+    - (Recursive modules)
+    - Remove with statements
+
 

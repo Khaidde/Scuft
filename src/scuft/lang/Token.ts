@@ -9,6 +9,9 @@ export class Token {
 
     value!: number | string;
 
+    static fromType(type: TokenType, locToken: Token): Token {
+        return new Token(tokenToStr(type), locToken.line, locToken.c, type);
+    }
     constructor(stringValue: string, line: number, c: number, type: TokenType) {
         this.stringValue = stringValue;
 
@@ -25,6 +28,12 @@ export class Token {
     }
     isTokenTypeEqual(other: Token): boolean {
         return other.type === this.type;
+    }
+    // Returns whether the otherAfterCurrent token is after the current
+    isTokenBefore(otherAfterCurrent: Token): boolean {
+        return (
+            this.line < otherAfterCurrent.line || (this.line === otherAfterCurrent.line && this.c < otherAfterCurrent.c)
+        );
     }
 }
 
@@ -60,8 +69,6 @@ export function tokenToStr(tokenType: TokenType): string {
             return "type";
         case TokenType.MODULE_TKN:
             return "module";
-        case TokenType.WITH_TKN:
-            return "with";
         case TokenType.IF_TKN:
             return "if";
         case TokenType.ELSE_TKN:
@@ -76,8 +83,6 @@ export function tokenToStr(tokenType: TokenType): string {
             return "break";
         case TokenType.CONTINUE_TKN:
             return "continue";
-        case TokenType.OPERATOR_TKN:
-            return "operator";
 
         // Conditionals
         case TokenType.COND_OR_TKN:
@@ -108,6 +113,8 @@ export function tokenToStr(tokenType: TokenType): string {
         // Types
         case TokenType.MUT_CAST_TKN:
             return "mut";
+        case TokenType.IMMUT_CAST_TKN:
+            return "immut";
         case TokenType.CONST_CAST_TKN:
             return "const";
         case TokenType.VOID_TYPE_TKN:
@@ -171,17 +178,11 @@ export function tokenToStr(tokenType: TokenType): string {
         case TokenType.OP_DIV_EQUALS_TKN:
             return "/=";
 
-        // Directives
-        case TokenType.HASH_RANGE_TKN:
-            return "#range";
-
         // Miscellaneous
         case TokenType.DOUBLE_QUOTE_TKN:
             return '"';
         case TokenType.DOT_TKN:
             return ".";
-        case TokenType.ELLIPSIS_TKN:
-            return "...";
         case TokenType.REVERSE_ARROW_TKN:
             return "<-";
         case TokenType.COMMA_TKN:
@@ -215,7 +216,6 @@ export enum TokenType {
     // Statement Keywords
     TYPE_TKN, // particle = type {} or typeof(particle) == type;
     MODULE_TKN,
-    WITH_TKN,
     IF_TKN,
     ELSE_TKN,
     WHILE_TKN,
@@ -223,7 +223,6 @@ export enum TokenType {
     IN_TKN,
     BREAK_TKN,
     CONTINUE_TKN,
-    OPERATOR_TKN,
 
     // Conditionals
     COND_OR_TKN, // ||
@@ -241,6 +240,7 @@ export enum TokenType {
 
     // Types
     MUT_CAST_TKN,
+    IMMUT_CAST_TKN, // For the sake of completion
     CONST_CAST_TKN,
     VOID_TYPE_TKN,
     NUM_TYPE_TKN,
@@ -277,13 +277,9 @@ export enum TokenType {
     OP_MULT_EQUALS_TKN,
     OP_DIV_EQUALS_TKN,
 
-    // Directives
-    HASH_RANGE_TKN,
-
     // Miscellaneous
     DOUBLE_QUOTE_TKN,
     DOT_TKN,
-    ELLIPSIS_TKN, // for [array] doSomething(...)
     REVERSE_ARROW_TKN, // Particle.{ x <- 4, y <- 3}
     COMMA_TKN,
     SEMI_COLON_TKN,

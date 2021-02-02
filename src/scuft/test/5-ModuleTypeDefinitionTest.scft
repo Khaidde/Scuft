@@ -21,7 +21,6 @@ test => module {
         if (3 < 4) doSomething(); else doOtherThing();
         while true doSomething();
         for i in x.array doSomething();
-        lambda = \a, b => a * b;
 
         func = () doThing(-1, 2);
         funcWithParam = (a: num, b: num) doThing(a, b);
@@ -121,12 +120,12 @@ main = () -> num {
     for item in array {
         item = item + 1;
     }
-    tester = 3 + test.(3 + 2).nice() + (\x, y => x + y + 3) (4, 5); 
+    tester = 3 + test.(3 + 2).nice() + ((x: num, y = 3) return x + y + 3;) (4, 5); 
     test3 = 4 * 8 . x; 
     test53 = 3 + s.4 (3);
 
     testtest = thing.other.call() << 3;
-    testOther = \x,y => x ^ y;
+    testOther = (x: num, y: num) x ^ y;
 }
 
 test2 => module {
@@ -150,10 +149,3 @@ testParticle = Particle.{
         y <- 4
     }
 };
-
-testMod => module {
-    funct = () {
-        doThing()
-        if true {
-            continue
-        }

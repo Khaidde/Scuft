@@ -16,10 +16,10 @@ operator + => (a: ListItem, b: ListItem) -> ListItem {
     return resList;
 }
 
-Tree => type [
+Tree => type {
     branch: <Tree..?>;
     entry: num;
-]
+}
 
 vector => module {
     Vec3 => type {

@@ -1,0 +1,24 @@
+1/11/21 (Monday)
+    - Took a break for the first time in four weeks
+    - Set a deadline for the end of the week: "Finish the interpreter and then move on"
+
+1/12/21 (Tuesday)
+    Tasks
+    - Remove function overloading
+    - Refactor dot operator and ASTName stuff to work for the general case
+    
+    Small Tasks
+    - Removed function overloading and fixed searchDeclarationName() to fit this change
+    - Implemented dot operator type checking for const type instance property access: part => Particle.{ x <- 4 }; val => part.x;
+    - Started work on interpreter
+
+1/13/21 (Wednesday)
+    Tasks
+    - Do more work on the interpreter and get function calls to work
+        - Use the interpreter to evaluate constant function calls
+    
+    Small Tasks
+    - Find and execute the main function
+    - Very simple interpretation of binary operators(+,-,*,/) and beginnnings of return statements
+    - Removed with statements and operator overloads to simplify language and get it done
+    - Finally decided to transition over to C++ (See ScuftC project)

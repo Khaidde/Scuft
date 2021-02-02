@@ -1,6 +1,6 @@
 import { Token } from "./Token";
 import Lexer from "./Lexer";
-import { ASTNode } from "./Ast";
+import * as AST from "./Ast";
 
 export class ErrorHandler {
     static fromHandler(header: string, errorHandler: ErrorHandler): ErrorHandler {
@@ -103,12 +103,6 @@ export class ErrorHandler {
     atToken_PANIC(msg: string, token: Token): never {
         this.atPoint_PANIC(msg, token.line, token.c);
     }
-    atNode(msg: string, node: ASTNode): ErrorHandler {
-        return this.atToken(msg, node.locToken);
-    }
-    atNode_PANIC(msg: string, node: ASTNode): never {
-        this.atToken_PANIC(msg, node.locToken);
-    }
     atWholeToken(msg: string, token: Token): ErrorHandler {
         let line = token.line;
         let c = token.c;
@@ -122,6 +116,32 @@ export class ErrorHandler {
     }
     atWholeToken_PANIC(msg: string, token: Token): never {
         this.atWholeToken(msg, token);
+        this.panic();
+    }
+    atNode(msg: string, node: AST.ASTNode): ErrorHandler {
+        return this.atToken(msg, node.locToken);
+    }
+    atNode_PANIC(msg: string, node: AST.ASTNode): never {
+        this.atToken_PANIC(msg, node.locToken);
+    }
+    atWholeNode(msg: string, node: AST.ASTNode): ErrorHandler {
+        let locToken = node.locToken;
+        if (node.nodeName === AST.NodeType.BINARY_OP) {
+            locToken = (<AST.ASTBinaryOperator>node).operation;
+        }
+        let line = locToken.line;
+        let c = locToken.c;
+        let endToken = node.endToken && node.endToken.line === line ? node.endToken : locToken;
+        let error = this.errorHeader(msg, line, c);
+        let len = Math.floor(Math.log10(line + 1)) + 1;
+        error += this.formatLine(len, line - 1, "");
+        error += this.formatLine(len, line, this.getLineFromSource(line));
+        error += this.formatLine(len, line + 1, this.makeIndicator(line, c, endToken.c + endToken.stringValue.length));
+        this.errorQueue.push(error);
+        return this;
+    }
+    atWholeNode_PANIC(msg: string, node: AST.ASTNode): never {
+        this.atWholeNode(msg, node);
         this.panic();
     }
     atAfterLastToken(msg: string, curToken: Token): ErrorHandler {

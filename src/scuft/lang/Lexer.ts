@@ -46,7 +46,13 @@ export default class Lexer {
 
         //Return end token if end of string input reached
         if (this.curIndex >= this.sourceCode.length) {
-            return this.grabToken("' '", TokenType.END_TKN);
+            let lastTkn = this.lastToken;
+            let tkn = this.grabToken("' '", TokenType.END_TKN);
+            if (lastTkn) {
+                tkn.line = lastTkn.line;
+                tkn.c = lastTkn.c + lastTkn.stringValue.length;
+            }
+            return tkn;
         }
 
         switch (this.getCurChar()) {
@@ -182,11 +188,7 @@ export default class Lexer {
                     return this.grabToken("~", TokenType.BIN_NOT_TKN);
                 }
             case ".":
-                if (this.getNextChar() === "." && this.getChar(this.curIndex + 2) === ".") {
-                    return this.grabToken("...", TokenType.ELLIPSIS_TKN);
-                } else {
-                    return this.grabToken(".", TokenType.DOT_TKN);
-                }
+                return this.grabToken(".", TokenType.DOT_TKN);
             case "\\":
                 return this.grabToken("\\", TokenType.BACKSLASH_TKN);
             case ",":
@@ -200,8 +202,6 @@ export default class Lexer {
                     return this.grabIdentifier();
                 } else if (Lexer.isNumber(this.getCurChar())) {
                     return this.grabNumericLiteral();
-                } else if (this.getCurChar() === "#") {
-                    return this.grabDirective();
                 } else {
                     let unknown = this.grabToken(this.getCurChar(), TokenType.UNKNOWN_TKN);
                     unknown.value = this.getCurChar();
@@ -213,8 +213,10 @@ export default class Lexer {
         this.incrementCurIndex(str.length);
         return this.makeToken(str, type);
     }
+    private lastToken!: Token;
     private makeToken(str: string, type: TokenType): Token {
         let tkn = new Token(str, this.curLine, this.curC - str.length, type);
+        this.lastToken = tkn;
         return tkn;
     }
     private grabNumericLiteral(): Token {
@@ -302,23 +304,6 @@ export default class Lexer {
         tkn.value = str;
         return tkn;
     }
-    private grabDirective(): Token {
-        console.assert(this.getCurChar() === "#", "Directives must start with #");
-        this.incrementCurIndex(1);
-        let str = "#";
-        let ch = this.getCurChar();
-        while (Lexer.isLetter(ch) || Lexer.isNumber(ch)) {
-            this.incrementCurIndex(1);
-            str = str + ch;
-            ch = this.getCurChar();
-        }
-        switch (str) {
-            case "#range":
-                return this.makeToken(str, TokenType.HASH_RANGE_TKN);
-            default:
-                return this.makeToken(str, TokenType.UNKNOWN_TKN);
-        }
-    }
     private grabIdentifier(): Token {
         let str = "";
         let ch = this.getCurChar();
@@ -332,8 +317,6 @@ export default class Lexer {
                 return this.makeToken(str, TokenType.TYPE_TKN);
             case "module":
                 return this.makeToken(str, TokenType.MODULE_TKN);
-            case "with":
-                return this.makeToken(str, TokenType.WITH_TKN);
             case "if":
                 return this.makeToken(str, TokenType.IF_TKN);
             case "else":
@@ -348,8 +331,6 @@ export default class Lexer {
                 return this.makeToken(str, TokenType.BREAK_TKN);
             case "continue":
                 return this.makeToken(str, TokenType.CONTINUE_TKN);
-            case "operator":
-                return this.makeToken(str, TokenType.OPERATOR_TKN);
 
             //Conditionals
             case "true":
