@@ -2,6 +2,8 @@
 SCUFT is an educational scripting language primarily used for physics simulations. It stands for "Scientific Computation
 Used For Teaching". Currently, SCUFT has an intended target of intro level college physics and related mathematical subfields. This repository is a prototype project for future development plans.
 
+Note: The typescript implementation of the compiler is discontinued. Currently being ported over to C++ for integration with LLVM.
+
 ## Why Use Scuft?
 Besides the amazing name, there are a ton of benefits to using Scuft as opposed to many main stream scientific computation languages. The most popular of which include C++ and Fortran. These languages prioritize speed and flexibility, something which is often needed in intense scientific computations but not necessarily in an intro level physics course. 
 
@@ -38,82 +40,77 @@ $ npm run serve
 
 5) Live webpage is accessible at `localhost:8100`
 
-### Prototype Syntax (Due to Change)
-#### Option 1:
+### Proposed Syntax (Due to Change with transition to C++)
 ```
-//Entry point to declarations 
-main {
-
-    //Initialize a particle with phsyical properties
-    particle {
-        position [1, 2, 3] //[x, y, z]
-        velocity [4, 5, 6]
-        force    [7, 8, 9]
-    }
-} => step 100 //Run 100 steps of the simulation
-```
-#### Option 2:
-```
-PARTICLE p
-p.vel[1, 2, 3] //[x, y, z]
-p.pos[4, 5, 6]  
-p.force[7, 8, 9] 
-Start
-Step (100)
-```
-#### Option 3a:
-```
-fn main = {
-    p : Particle = {
-        pos = <1, 2, 3>;
-        vel = <4, 5, 6>;
-        force = <7, 8, 9>;
-    }
-    step(p, 100);
-}
-```
-#### Option 3b:
-```
-type DetailedParticle {
-    pos : Position(3) = <1, 2, 3>; //<x, y, z>
-    vel : Velocity(3) = <4, 5, 6>;
-    force : Force(3) =  <7, 8, 9>;
-
-    id = 0;
-    name : string = "DetailedParticle"; //name = "DetailedParticle" is also valid
+ListItem => type {
+    entry: num;
+    nextItem: ListItem;
 }
 
-fn step : (particle: DetailedParticle, stepCount: number) = {
-    particle.pos.x += particle.vel.x * stepCount;
-    particle.pos.y += particle.vel.y * stepCount;
-    particle.pos.z += particle.vel.z * stepCount;
+operator + => (a: ListItem, b: ListItem) -> ListItem {
+    resList = ListItem.{};
+    resList.entry = a.entry + b.entry;
+    if a == null || b == null {
+        resList.nextItem = null;
+    } else {
+        resList.nextItem = a.nextVec + b.nextVec;
+    }
+    return resList;
 }
 
-fn main = {
-    p1 : Particle;
-    step(p1, 100);
+Tree => type {
+    branch: <Tree..?>;
+    entry: num;
+}
 
-    particles : DetailedParticle[1000];
-
-    || step(particles[...], 100); //Iteration: Apply step function on all points in the array, "particles"
-
-    //Define function within the scope of another function
-    fn getPositionX : (particle: DetailedParticle) -> number = {
-        return particle.pos.x;
+vector => module {
+    Vec3 => type {
+        x: num;
+        y: num;
+        z: num;
     }
 
-    xPosition = getPositionX(p1); //Implicit type "number", equivalent to xPosition : number = getPositionX(p1)
-    out(xPosition);
-
-    fn printX : (particle: DetailedParticle) = {
-        out(particle.pos.x); //Print "out" to console
+    operator dot => (a: Vec3, b: Vec3) -> Vec3 {
+        newVec3 = Vec3.{};
+        newVec3.x = a.x * b.x;
+        newVec3.y = a.y * b.y;
+        newVec3.z = a.z * b.z;
     }
 
-    //Iterate over a scope
-    || {
-        printX(particle[...]);   
-        out("-----line divider----");
+    scale => num;
+    operator * => (scalar: scale, vec: Vec3) -> Vec3 {
+        return Vec.{ 
+            x <- scalar * vec.x,
+            y <- scalar * vec.y,
+            z <- scalar * vec.z
+        };
     }
+}
+
+length = (a: <num..?>) -> num {
+    count ~= 0;
+    for i in a {
+        count ~= count + 1;
+    }
+    return count;
+}
+
+push = (a: <num..?>, b: num) -> <num..?> {
+    newVec = <num..(length(a) + 1)>
+    for i in #range [0, length(a)) newVec<i> = a<i>
+    newVec<length(a)> = b;
+}
+
+main = () {
+    size ~= 10;
+    
+    if (rand() < 0.5) {
+        size = 13;
+    }
+
+    vec: <num..size>;
+
+    tuple: <<num, num, <string, num>>...10>
 }
 ```
 
